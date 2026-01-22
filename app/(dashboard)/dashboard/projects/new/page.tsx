@@ -27,7 +27,6 @@ const PROVIDERS: { id: LLMProvider; name: string }[] = [
   { id: 'openai', name: 'OpenAI' },
   { id: 'anthropic', name: 'Anthropic' },
   { id: 'google', name: 'Google AI' },
-  { id: 'perplexity', name: 'Perplexity' },
 ]
 
 export default function NewProjectPage() {
@@ -59,7 +58,7 @@ export default function NewProjectPage() {
         const providers: LLMProvider[] = []
         if (Array.isArray(settings)) {
           for (const s of settings) {
-            if (s.has_key && ['openai', 'anthropic', 'google', 'perplexity'].includes(s.provider)) {
+            if (s.has_key && ['openai', 'anthropic', 'google'].includes(s.provider)) {
               providers.push(s.provider as LLMProvider)
             }
           }

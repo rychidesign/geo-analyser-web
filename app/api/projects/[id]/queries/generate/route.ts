@@ -88,7 +88,6 @@ export async function POST(
       if (model.startsWith('gpt')) return 'openai'
       if (model.startsWith('claude')) return 'anthropic'
       if (model.startsWith('gemini')) return 'google'
-      if (model.startsWith('sonar')) return 'perplexity'
       return 'openai'
     }
 

@@ -77,7 +77,6 @@ export async function getUserApiKeys(userId: string): Promise<UserApiKeys> {
     openai_api_key: null,
     anthropic_api_key: null,
     google_api_key: null,
-    perplexity_api_key: null,
   }
   
   for (const setting of settings) {

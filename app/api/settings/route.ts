@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Provider is required' }, { status: 400 })
     }
 
-    const validProviders = ['openai', 'anthropic', 'google', 'perplexity']
+    const validProviders = ['openai', 'anthropic', 'google']
     if (!validProviders.includes(provider)) {
       return NextResponse.json({ error: 'Invalid provider' }, { status: 400 })
     }
@@ -84,7 +84,6 @@ function getDefaultModel(provider: string): string {
     openai: 'gpt-4o',
     anthropic: 'claude-3-5-sonnet-20241022',
     google: 'gemini-1.5-pro',
-    perplexity: 'sonar-pro',
   }
   return defaults[provider] || ''
 }
