@@ -97,8 +97,7 @@ export default function LoginPage() {
 
             <Button 
               type="submit" 
-              className="w-full" 
-              variant="emerald"
+              className="w-full bg-emerald-600 hover:bg-emerald-700" 
               disabled={loading}
             >
               {loading ? (

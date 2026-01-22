@@ -473,7 +473,7 @@ export default function ProjectPage() {
                 <BarChart3 className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
                 <p className="text-zinc-500 mb-4">No scans yet</p>
                 <Button 
-                  variant="emerald" 
+                  className="bg-emerald-600 hover:bg-emerald-700"
                   disabled={queries.length === 0 || scanning}
                   onClick={runScan}
                 >
