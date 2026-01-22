@@ -1,0 +1,13 @@
+{
+  "version": "5",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1768829007328,
+      "tag": "0000_right_living_lightning",
+      "breakpoints": true
+    }
+  ]
+}

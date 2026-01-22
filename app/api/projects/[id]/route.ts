@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { getProjectById, updateProject, deleteProject } from '@/lib/db/projects'
+
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const project = await getProjectById(id)
+    
+    if (!project || project.user_id !== user.id) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    return NextResponse.json(project)
+  } catch (error: any) {
+    console.error('Error fetching project:', error)
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch project' }, 
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify ownership
+    const existing = await getProjectById(id)
+    if (!existing || existing.user_id !== user.id) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    const body = await request.json()
+    const allowedFields = [
+      'name', 
+      'domain', 
+      'language',
+      'evaluation_method',
+      'brand_variations',
+      'target_keywords',
+      'scheduled_scan_enabled', 
+      'scheduled_scan_day',
+      'selected_models'
+    ]
+    
+    const updates: Record<string, any> = {}
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates[field] = body[field]
+      }
+    }
+
+    const project = await updateProject(id, updates)
+    return NextResponse.json(project)
+  } catch (error: any) {
+    console.error('Error updating project:', error)
+    return NextResponse.json(
+      { error: error.message || 'Failed to update project' }, 
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify ownership
+    const existing = await getProjectById(id)
+    if (!existing || existing.user_id !== user.id) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    await deleteProject(id)
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Error deleting project:', error)
+    return NextResponse.json(
+      { error: error.message || 'Failed to delete project' }, 
+      { status: 500 }
+    )
+  }
+}
