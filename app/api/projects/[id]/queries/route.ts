@@ -61,6 +61,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       query_text: query_text.trim(),
       query_type: query_type || 'informational',
       is_active: true,
+      is_ai_generated: false,
     })
 
     return NextResponse.json(query)
