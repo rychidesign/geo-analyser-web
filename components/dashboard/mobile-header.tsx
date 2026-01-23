@@ -30,20 +30,25 @@ export function MobileHeader({ onMenuClick }: MobileHeaderProps) {
         const response = await fetch('/api/queue')
         if (response.ok) {
           const data = await response.json()
-          const active = data.queue?.filter((item: any) => 
+          console.log('[MobileHeader] Queue data:', data)
+          const active = (Array.isArray(data) ? data : []).filter((item: any) => 
             item.status === 'running' || item.status === 'pending'
-          ) || []
+          )
+          console.log('[MobileHeader] Active scans:', active)
           setActiveScans(active)
         }
       } catch (error) {
-        console.error('Error fetching active scans:', error)
+        console.error('[MobileHeader] Error fetching active scans:', error)
       } finally {
         setLoading(false)
       }
     }
 
+    // Immediate first fetch
     fetchActiveScans()
-    const interval = setInterval(fetchActiveScans, 3000) // Poll every 3 seconds
+    
+    // Then poll every second for real-time updates
+    const interval = setInterval(fetchActiveScans, 1000)
 
     return () => clearInterval(interval)
   }, [])
@@ -69,12 +74,12 @@ export function MobileHeader({ onMenuClick }: MobileHeaderProps) {
       {hasActiveScans && (
         <button
           onClick={onMenuClick}
-          className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 rounded-md text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-xs text-blue-400 hover:bg-blue-500/20 transition-colors"
         >
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           <span>Scanning</span>
           {runningScan && runningScan.progress_total > 0 && (
-            <span className="text-zinc-500">
+            <span className="text-blue-300/60">
               {runningScan.progress_current}/{runningScan.progress_total}
             </span>
           )}
