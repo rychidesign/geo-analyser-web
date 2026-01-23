@@ -18,13 +18,13 @@ export default async function DashboardPage() {
   return (
     <>
       {/* Header */}
-      <div className="shrink-0 bg-zinc-950 border-b border-zinc-800/50" style={{ padding: '16px 32px' }}>
+      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0" style={{ padding: '16px 32px' }}>
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="text-sm text-zinc-400">Welcome back, {user?.email}</p>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="p-8 lg:flex-1 lg:overflow-y-auto">
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -99,7 +99,7 @@ export default function ScanResultsPage() {
   return (
     <>
       {/* Header */}
-      <div className="shrink-0 bg-zinc-950 border-b border-zinc-800/50" style={{ padding: '16px 32px' }}>
+      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0" style={{ padding: '16px 32px' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link 
@@ -138,10 +138,10 @@ export default function ScanResultsPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="p-8 lg:flex-1 lg:overflow-y-auto">
 
       {/* Score Metrics */}
-      <div className="grid grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <div className="text-xs text-zinc-500 mb-1">Overall</div>

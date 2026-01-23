@@ -15,7 +15,7 @@ export default async function ProjectsPage() {
   return (
     <>
       {/* Header */}
-      <div className="shrink-0 bg-zinc-950 border-b border-zinc-800/50" style={{ padding: '16px 32px' }}>
+      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0" style={{ padding: '16px 32px' }}>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Projects</h1>
@@ -31,7 +31,7 @@ export default async function ProjectsPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="p-8 lg:flex-1 lg:overflow-y-auto">
         <ProjectsList projects={projects} />
       </div>
     </>

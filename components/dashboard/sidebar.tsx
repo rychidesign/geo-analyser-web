@@ -11,7 +11,8 @@ import {
   LogOut,
   Plus,
   CreditCard,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -21,9 +22,11 @@ import type { User } from '@supabase/supabase-js'
 
 interface DashboardSidebarProps {
   user: User
+  isOpen?: boolean
+  onClose?: () => void
 }
 
-export function DashboardSidebar({ user }: DashboardSidebarProps) {
+export function DashboardSidebar({ user, isOpen = false, onClose }: DashboardSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
@@ -44,10 +47,21 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
   ]
 
   return (
-    <div className="w-64 h-screen bg-zinc-900 flex flex-col border-r border-zinc-800">
+    <div 
+      className={cn(
+        "w-64 h-full bg-zinc-900 flex flex-col border-r border-zinc-800",
+        // Mobile: fixed overlay, slide in from left
+        "fixed inset-y-0 left-0 z-50",
+        // Desktop: relative positioning
+        "lg:relative",
+        // Transform for mobile slide animation
+        "transform transition-transform duration-300 ease-in-out",
+        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}
+    >
       {/* Header */}
-      <div className="p-6 border-b border-zinc-800">
-        <Link href="/dashboard" className="flex items-center gap-3">
+      <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
+        <Link href="/dashboard" className="flex items-center gap-3" onClick={onClose}>
           <Image 
             src="/app-icon.png" 
             alt="GEO Analyser" 
@@ -57,6 +71,14 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
           />
           <span className="text-lg font-semibold">GEO Analyser</span>
         </Link>
+        
+        {/* Close button - visible only on mobile */}
+        <button
+          onClick={onClose}
+          className="lg:hidden text-zinc-400 hover:text-zinc-100 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Navigation */}
@@ -70,6 +92,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={onClose}
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors',
                   isActive
@@ -91,6 +114,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
           {/* New Project Button */}
           <Link
             href="/dashboard/projects/new"
+            onClick={onClose}
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-md transition-colors"
           >
             <Plus className="w-4 h-4" />

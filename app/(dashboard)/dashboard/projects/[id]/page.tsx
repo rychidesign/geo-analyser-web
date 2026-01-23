@@ -175,7 +175,7 @@ export default function ProjectPage() {
   return (
     <>
       {/* Header */}
-      <div className="shrink-0 bg-zinc-950 border-b border-zinc-800/50" style={{ padding: '16px 32px' }}>
+      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0" style={{ padding: '16px 32px' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link 
@@ -215,7 +215,7 @@ export default function ProjectPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="p-8 lg:flex-1 lg:overflow-y-auto">
         {/* Project Info */}
         <div className="flex items-center gap-4 text-sm text-zinc-400 flex-wrap mb-8">
           <span className="flex items-center gap-1">
@@ -252,7 +252,7 @@ export default function ProjectPage() {
       )}
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '32px' }}>
+      <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -415,56 +415,79 @@ export default function ProjectPage() {
                   <Link 
                     key={scan.id}
                     href={`/dashboard/projects/${projectId}/scans/${scan.id}`}
-                    className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors"
+                    className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3 p-3 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <Clock className="w-4 h-4 text-zinc-500" />
-                      <span className="text-sm">
-                        {new Date(scan.created_at).toLocaleDateString('en-US')}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        scan.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
-                        scan.status === 'failed' ? 'bg-red-500/20 text-red-400' :
-                        'bg-yellow-500/20 text-yellow-400'
-                      }`}>
-                        {scan.status}
-                      </span>
-                      {scan.evaluation_method === 'ai' && (
-                        <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
-                          <Cpu className="w-3 h-3" /> AI
-                        </Badge>
-                      )}
-                    </div>
-                    {scan.status === 'completed' && (
-                      <div className="flex items-center gap-4 text-xs text-zinc-500">
-                        <span className="flex items-center gap-1">
-                          {(scan.avg_visibility ?? 0) > 0 ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                          {scan.avg_visibility ?? 0}%
+                    {/* Mobile: Two rows | Desktop: Single row */}
+                    
+                    {/* Mobile First Row / Desktop Left Section: Date, Status */}
+                    <div className="flex items-center justify-between lg:justify-start gap-3 lg:flex-1">
+                      <div className="flex items-center gap-3">
+                        <Clock className="w-4 h-4 text-zinc-500" />
+                        <span className="text-sm">
+                          {new Date(scan.created_at).toLocaleDateString('en-US')}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <ThumbsUp className="w-3.5 h-3.5" />
-                          {scan.avg_sentiment ?? 50}%
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          scan.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                          scan.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                          'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {scan.status}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Quote className="w-3.5 h-3.5" />
-                          {scan.avg_citation ?? 0}%
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Award className="w-3.5 h-3.5" />
-                          {scan.avg_ranking ?? 0}%
-                        </span>
+                        {scan.evaluation_method === 'ai' && (
+                          <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
+                            <Cpu className="w-3 h-3" /> AI
+                          </Badge>
+                        )}
                       </div>
-                    )}
-                    <div className="flex items-center gap-3">
+                      {/* Mobile: Overall Score on first row right */}
                       {scan.status === 'completed' && scan.overall_score !== null && (
-                        <span className="text-sm font-semibold text-white">
+                        <span className="lg:hidden text-sm font-semibold text-emerald-400">
                           {scan.overall_score}%
                         </span>
                       )}
-                      <span className="text-xs text-zinc-500">
-                        ${scan.total_cost_usd.toFixed(4)}
-                      </span>
                     </div>
+
+                    {/* Mobile Second Row / Desktop Middle Section: Metrics */}
+                    {scan.status === 'completed' && (
+                      <div className="flex items-center justify-between lg:justify-start lg:flex-1">
+                        <div className="flex items-center gap-4 text-xs text-zinc-500">
+                          <span className="flex items-center gap-1">
+                            {(scan.avg_visibility ?? 0) > 0 ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                            {scan.avg_visibility ?? 0}%
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <ThumbsUp className="w-3.5 h-3.5" />
+                            {scan.avg_sentiment ?? 50}%
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Quote className="w-3.5 h-3.5" />
+                            {scan.avg_citation ?? 0}%
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Award className="w-3.5 h-3.5" />
+                            {scan.avg_ranking ?? 0}%
+                          </span>
+                        </div>
+                        {/* Mobile: Cost on second row right */}
+                        <span className="lg:hidden text-xs text-zinc-500">
+                          ${scan.total_cost_usd.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Desktop Only: Right Section with Overall Score and Cost */}
+                    {scan.status === 'completed' && (
+                      <div className="hidden lg:flex items-center gap-4">
+                        {scan.overall_score !== null && (
+                          <span className="text-sm font-semibold text-emerald-400">
+                            {scan.overall_score}%
+                          </span>
+                        )}
+                        <span className="text-xs text-zinc-500">
+                          ${scan.total_cost_usd.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
                   </Link>
                 ))}
               </div>
