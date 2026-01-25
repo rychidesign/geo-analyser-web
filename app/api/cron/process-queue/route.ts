@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { runScan } from '@/lib/scan/engine'
 import { getUserApiKeys } from '@/lib/db/settings'
-import { getProviderForModel, AVAILABLE_MODELS, type LLMModel, type LLMProvider } from '@/lib/llm/types'
+import { AVAILABLE_MODELS, type LLMModel, type LLMProvider } from '@/lib/llm/types'
 import { TABLES } from '@/lib/db/schema'
 
 // Use service role for cron jobs (bypasses RLS)
@@ -26,25 +26,23 @@ export async function GET(request: Request) {
 
   try {
     // --- Step 1: Reset stuck 'running' scans ---
-    const stuckThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(); // 2 hours ago
-    const progressStuckThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString(); // 15 minutes ago
+    // Stuck = running for >2 hours OR no progress in last 15 minutes
+    const stuckThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() // 2 hours ago
+    const progressStuckThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString() // 15 minutes ago
 
     const { data: stuckScans, error: stuckError } = await supabase
       .from(TABLES.SCAN_QUEUE)
       .select('id, status, updated_at, progress_current, progress_total, started_at')
       .eq('status', 'running')
       .or(`started_at.lt.${stuckThreshold},and(progress_current.eq.0,started_at.lt.${stuckThreshold}),and(progress_current.gt.0,updated_at.lt.${progressStuckThreshold})`)
-      .limit(10); // Limit to avoid processing too many at once
+      .limit(10) // Limit to avoid processing too many at once
 
     if (stuckError) {
-      console.error('[Cron] Error fetching stuck scans:', stuckError);
-      throw stuckError;
-    }
-
-    if (stuckScans && stuckScans.length > 0) {
-      console.warn(`[Cron] Found ${stuckScans.length} potentially stuck scans. Resetting...`);
+      console.error('[Cron] Error fetching stuck scans:', stuckError)
+    } else if (stuckScans && stuckScans.length > 0) {
+      console.warn(`[Cron] Found ${stuckScans.length} potentially stuck scans. Resetting...`)
       for (const scan of stuckScans) {
-        console.log(`[Cron] Resetting stuck scan ${scan.id}. Status: ${scan.status}, Updated: ${scan.updated_at}, Progress: ${scan.progress_current}/${scan.progress_total}`);
+        console.log(`[Cron] Resetting stuck scan ${scan.id}. Status: ${scan.status}, Updated: ${scan.updated_at}, Progress: ${scan.progress_current}/${scan.progress_total}`)
         await supabase
           .from(TABLES.SCAN_QUEUE)
           .update({
@@ -53,28 +51,12 @@ export async function GET(request: Request) {
             error_message: 'Scan stuck or timed out (auto-reset)',
             updated_at: new Date().toISOString(),
           })
-          .eq('id', scan.id);
+          .eq('id', scan.id)
       }
     }
 
-    // --- Step 2: Check if there's already a running scan ---
-    const { data: runningScans, error: runningError } = await supabase
-      .from(TABLES.SCAN_QUEUE)
-      .select('id')
-      .eq('status', 'running')
-      .limit(1)
-
-    if (runningError) {
-      console.error('[Cron] Error checking running scans:', runningError)
-      throw runningError
-    }
-
-    if (runningScans && runningScans.length > 0) {
-      console.log('[Cron] A scan is already running, skipping this run')
-      return NextResponse.json({ message: 'Scan already running' })
-    }
-
-    // --- Step 3: Process next pending item ---
+    // --- Step 2: Process next pending item ---
+    // No limit on concurrent scans - each user has their own API keys and rate limits
     const { data: queueItem, error: queueError } = await supabase
       .from(TABLES.SCAN_QUEUE)
       .select('*')
@@ -209,7 +191,6 @@ export async function GET(request: Request) {
     console.error('[Cron] Queue process error:', error)
 
     // Try to mark the failed item if we know which one it is
-    // Look for queue item ID in error context (if available)
     try {
       const { data: runningItems } = await supabase
         .from(TABLES.SCAN_QUEUE)
