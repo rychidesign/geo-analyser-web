@@ -20,6 +20,7 @@ CREATE TABLE scan_queue (
   
   -- Timestamps
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   
@@ -53,6 +54,12 @@ CREATE POLICY "Users can update own queue items"
 CREATE POLICY "Users can delete own queue items"
   ON scan_queue FOR DELETE
   USING (auth.uid() = user_id);
+
+-- Trigger for updated_at
+CREATE TRIGGER update_scan_queue_updated_at
+  BEFORE UPDATE ON scan_queue
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
 
 -- Comments
 COMMENT ON TABLE scan_queue IS 'Queue system for managing scan execution with pause/resume support';

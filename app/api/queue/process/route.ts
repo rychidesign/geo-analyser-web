@@ -10,44 +10,9 @@ const TABLES = {
   QUERIES: 'project_queries',
 }
 
-// Helper function to check and trigger next queue item
-function checkAndTriggerNext(requestOrigin: string, authHeader: string | null, cookies: string | null) {
-  // Fire and forget - trigger in background
-  const url = `${requestOrigin}/api/queue/process`
-  console.log('[Queue Process] Triggering next queue item in background at:', url)
-  
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  
-  if (authHeader) {
-    headers['Authorization'] = authHeader
-  }
-  
-  if (cookies) {
-    headers['Cookie'] = cookies
-  }
-  
-  fetch(url, {
-    method: 'POST',
-    headers,
-    credentials: 'include', // Include cookies
-  })
-  .then(async (response) => {
-    console.log('[Queue Process] [Background] Response status:', response.status)
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('[Queue Process] [Background] Error:', response.status, errorText)
-    } else {
-      console.log('[Queue Process] [Background] Successfully triggered next item')
-    }
-  })
-  .catch(err => {
-    console.error('[Queue Process] [Background] Exception:', err)
-  })
-}
-
 // POST - Process next item in queue
+// Note: This endpoint is called by the cron job (/api/cron/process-queue) every minute
+// It should NOT recursively trigger itself to avoid timeouts
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -234,23 +199,9 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', queueItem.id)
 
-      console.log('[Queue Process] Scan completed, checking for next item in queue...')
+      console.log('[Queue Process] Scan completed successfully')
       
-      // Check if there are more pending items
-      const { data: nextItems } = await supabase
-        .from(TABLES.SCAN_QUEUE)
-        .select('id')
-        .eq('status', 'pending')
-        .limit(1)
-
-      if (nextItems && nextItems.length > 0) {
-        console.log(`[Queue Process] Found ${nextItems.length} pending item(s), triggering...`)
-        console.log('[Queue Process] Request origin:', request.nextUrl.origin)
-        // Trigger next queue item
-        checkAndTriggerNext(request.nextUrl.origin, authHeader, cookieHeader)
-      } else {
-        console.log('[Queue Process] No more pending items in queue')
-      }
+      // Note: Cron job will pick up next pending item automatically
 
       return NextResponse.json({
         success: true,
@@ -270,19 +221,8 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', queueItem.id)
 
-      // Check if there are more pending items even after failure
-      console.log('[Queue Process] Scan failed, checking for next item...')
-      const { data: nextItems } = await supabase
-        .from(TABLES.SCAN_QUEUE)
-        .select('id')
-        .eq('status', 'pending')
-        .limit(1)
-
-      if (nextItems && nextItems.length > 0) {
-        console.log('[Queue Process] Found next pending item after failure, triggering...')
-        // Trigger next queue item
-        checkAndTriggerNext(request.nextUrl.origin, authHeader, cookieHeader)
-      }
+      // Note: Cron job will pick up next pending item automatically
+      console.log('[Queue Process] Scan failed, cron will process next item')
 
       throw scanError
     }
