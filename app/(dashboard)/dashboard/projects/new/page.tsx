@@ -181,7 +181,7 @@ export default function NewProjectPage() {
   return (
     <>
       {/* Header */}
-      <div className="border-b lg:shrink-0" style={{ padding: '16px 32px' }}>
+      <div className="border-b lg:shrink-0 px-4 py-4 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link 
@@ -217,7 +217,7 @@ export default function NewProjectPage() {
       </div>
 
       {/* Content */}
-      <div className="p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="p-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
         <form id="new-project-form" onSubmit={handleSubmit} className="container mx-auto space-y-8">
 
           {/* Basic Info */}

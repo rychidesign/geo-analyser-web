@@ -173,13 +173,13 @@ export default function SettingsPage() {
   return (
     <>
       {/* Header */}
-      <div className="border-b lg:shrink-0" style={{ padding: '16px 32px' }}>
+      <div className="border-b lg:shrink-0 px-4 py-4 lg:px-8">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">Configure your LLM provider API keys and helper models.</p>
       </div>
 
       {/* Content */}
-      <div className="p-8 space-y-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="p-4 lg:p-8 space-y-8 lg:flex-1 lg:overflow-y-auto">
 
         {/* Helper Models Section */}
         <div className="space-y-4">

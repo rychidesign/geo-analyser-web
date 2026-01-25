@@ -129,7 +129,7 @@ export default function QueriesPage() {
   return (
     <>
       {/* Header */}
-      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0" style={{ padding: '16px 32px' }}>
+      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0 px-4 py-4 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link 
@@ -165,7 +165,7 @@ export default function QueriesPage() {
       </div>
 
       {/* Content */}
-      <div className="p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="p-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
       <div className="max-w-4xl">
 
       {/* Error message */}

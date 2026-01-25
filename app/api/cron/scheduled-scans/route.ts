@@ -75,19 +75,8 @@ export async function GET(request: Request) {
       .update({ last_scheduled_scan_at: new Date().toISOString() })
       .in('id', projectIds)
 
-    // Trigger queue processing
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/queue/process`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.CRON_SECRET}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      console.log('[Scheduled Scans] Triggered queue processing')
-    } catch (error) {
-      console.error('[Scheduled Scans] Failed to trigger queue processing:', error)
-    }
+    // Queue processing will be handled automatically by the process-queue cron job
+    console.log('[Scheduled Scans] Queue will be processed by cron job')
 
     return NextResponse.json({
       message: 'Scheduled scans queued',

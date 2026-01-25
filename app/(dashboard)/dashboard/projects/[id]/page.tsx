@@ -135,11 +135,8 @@ export default function ProjectPage() {
 
       console.log('Queue success:', data)
 
-      // Trigger queue processing
-      fetch('/api/queue/process', { method: 'POST' })
-
       // Show success message and reload data
-      setInfo('Scan queued successfully. Monitor progress in the sidebar.')
+      setInfo('Scan queued successfully. It will start processing within a minute.')
       setTimeout(() => {
         setInfo(null)
         loadProject() // Reload to show updated scan list
@@ -175,7 +172,7 @@ export default function ProjectPage() {
   return (
     <>
       {/* Header */}
-      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0" style={{ padding: '16px 32px' }}>
+      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0 px-4 py-4 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link 
@@ -215,7 +212,7 @@ export default function ProjectPage() {
       </div>
 
       {/* Content */}
-      <div className="p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="p-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
         {/* Project Info */}
         <div className="flex items-center gap-4 text-sm text-zinc-400 flex-wrap mb-8">
           <span className="flex items-center gap-1">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { 
   ArrowLeft, 
   Loader2,
@@ -15,10 +15,12 @@ import {
   Quote,
   TrendingUp,
   Award,
-  Cpu
+  Cpu,
+  Trash2
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { AIResponse } from '@/components/ui/ai-response'
 import type { Scan, ScanResult, ScanMetrics } from '@/lib/db/schema'
 
@@ -30,6 +32,7 @@ interface ProjectInfo {
 
 export default function ScanResultsPage() {
   const params = useParams()
+  const router = useRouter()
   const projectId = params.id as string
   const scanId = params.scanId as string
   
@@ -37,6 +40,7 @@ export default function ScanResultsPage() {
   const [results, setResults] = useState<ScanResult[]>([])
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -71,6 +75,31 @@ export default function ScanResultsPage() {
     })
   }
 
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this scan? This action cannot be undone.')) {
+      return
+    }
+
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/scans/${scanId}`, {
+        method: 'DELETE',
+      })
+
+      if (res.ok) {
+        // Redirect back to project page
+        router.push(`/dashboard/projects/${projectId}`)
+      } else {
+        alert('Failed to delete scan')
+        setDeleting(false)
+      }
+    } catch (error) {
+      console.error('Error deleting scan:', error)
+      alert('Failed to delete scan')
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -99,7 +128,7 @@ export default function ScanResultsPage() {
   return (
     <>
       {/* Header */}
-      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0" style={{ padding: '16px 32px' }}>
+      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0 px-4 py-4 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link 
@@ -134,11 +163,29 @@ export default function ScanResultsPage() {
               </div>
             </div>
           </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Scan
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="p-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
 
       {/* Score Metrics */}
       <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
