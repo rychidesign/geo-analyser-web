@@ -267,7 +267,7 @@ export default function ProjectSettingsPage() {
       </div>
 
       {/* Content */}
-      <div className="p-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="px-2 py-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
         <div className="container mx-auto space-y-8">
 
           {/* Basic Info */}

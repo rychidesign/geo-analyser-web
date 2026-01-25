@@ -165,7 +165,7 @@ export default function QueriesPage() {
       </div>
 
       {/* Content */}
-      <div className="p-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="px-2 py-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
       <div className="max-w-4xl">
 
       {/* Error message */}
