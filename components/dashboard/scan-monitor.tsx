@@ -28,6 +28,7 @@ interface ScanQueueWithProject extends ScanQueue {
 export function ScanMonitor() {
   const [queueItems, setQueueItems] = useState<ScanQueueWithProject[]>([])
   const [loading, setLoading] = useState(true)
+  const [resetting, setResetting] = useState(false)
 
   useEffect(() => {
     loadQueue()
@@ -102,6 +103,32 @@ export function ScanMonitor() {
     }
   }
 
+  const handleResetStuck = async () => {
+    if (!confirm('Reset all stuck/running scans? This will mark them as failed.')) {
+      return
+    }
+
+    setResetting(true)
+    try {
+      const res = await fetch('/api/admin/reset-stuck-scans', {
+        method: 'POST',
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        alert(`Successfully reset ${data.reset} stuck scan(s)`)
+        loadQueue()
+      } else {
+        alert('Failed to reset stuck scans')
+      }
+    } catch (error) {
+      console.error('Failed to reset stuck scans:', error)
+      alert('Failed to reset stuck scans')
+    } finally {
+      setResetting(false)
+    }
+  }
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'running':
@@ -164,6 +191,20 @@ export function ScanMonitor() {
               Running and queued scan operations
             </CardDescription>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResetStuck}
+            disabled={resetting}
+            className="text-xs h-7"
+            title="Reset stuck scans"
+          >
+            {resetting ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <XCircle className="w-3 h-3" />
+            )}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
