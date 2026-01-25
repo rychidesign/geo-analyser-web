@@ -185,7 +185,7 @@ export default function ScanResultsPage() {
       </div>
 
       {/* Content */}
-      <div className="px-2 py-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="px-4 py-4 lg:px-8 lg:flex-1 lg:overflow-y-auto">
 
       {/* Score Metrics */}
       <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-6">

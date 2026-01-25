@@ -212,7 +212,7 @@ export default function ProjectPage() {
       </div>
 
       {/* Content */}
-      <div className="px-2 py-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="px-4 py-4 lg:px-8 lg:flex-1 lg:overflow-y-auto">
         {/* Project Info */}
         <div className="flex items-center gap-4 text-sm text-zinc-400 flex-wrap mb-8">
           <span className="flex items-center gap-1">

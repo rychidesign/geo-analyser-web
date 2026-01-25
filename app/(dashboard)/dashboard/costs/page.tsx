@@ -41,7 +41,7 @@ export default async function CostsPage() {
       </div>
 
       {/* Content */}
-      <div className="px-2 py-4 lg:p-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="px-4 py-4 lg:px-8 lg:flex-1 lg:overflow-y-auto">
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
