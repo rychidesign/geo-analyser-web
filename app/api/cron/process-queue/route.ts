@@ -16,24 +16,38 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // First, check for stuck "running" items (running for more than 10 minutes)
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-    const { data: stuckItems, error: stuckError } = await supabase
+    // Check for stuck "running" items that haven't made progress
+    // Only reset if running for more than 2 hours AND no progress in last 15 minutes
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    
+    const { data: longRunning, error: longRunningError } = await supabase
       .from(TABLES.SCAN_QUEUE)
-      .select('id')
+      .select('id, progress_current, updated_at, started_at')
       .eq('status', 'running')
-      .lt('started_at', tenMinutesAgo)
+      .lt('started_at', twoHoursAgo)
 
-    if (stuckItems && stuckItems.length > 0) {
-      console.log(`[Cron] Found ${stuckItems.length} stuck items, resetting to pending...`)
-      await supabase
-        .from(TABLES.SCAN_QUEUE)
-        .update({
-          status: 'pending',
-          started_at: null,
-          error_message: 'Previous attempt timed out',
-        })
-        .in('id', stuckItems.map(item => item.id))
+    if (longRunning && longRunning.length > 0) {
+      console.log(`[Cron] Found ${longRunning.length} long-running items (>2h)`)
+      
+      // Check which ones have no recent progress (no update in last 15 minutes)
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+      const stuckItems = longRunning.filter(item => 
+        item.updated_at < fifteenMinutesAgo
+      )
+      
+      if (stuckItems.length > 0) {
+        console.log(`[Cron] Resetting ${stuckItems.length} truly stuck items (no progress in 15min)`)
+        await supabase
+          .from(TABLES.SCAN_QUEUE)
+          .update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+            error_message: 'Scan timed out - no progress for 15 minutes',
+          })
+          .in('id', stuckItems.map(item => item.id))
+      } else {
+        console.log('[Cron] All long-running scans are still making progress')
+      }
     }
 
     // Find the next pending item (oldest first, highest priority first)
