@@ -61,6 +61,7 @@ async function updateQueueProgress(
       progress_current: current,
       progress_total: total,
       progress_message: message,
+      updated_at: new Date().toISOString(), // ✅ Explicitly update timestamp
     })
     .eq('id', queueId)
 }
