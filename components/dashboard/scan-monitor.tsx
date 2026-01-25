@@ -96,10 +96,16 @@ export function ScanMonitor() {
         body: JSON.stringify({ action: 'cancel' }),
       })
       if (res.ok) {
+        console.log('[ScanMonitor] Scan cancelled successfully')
         loadQueue()
+      } else {
+        const error = await res.json()
+        console.error('[ScanMonitor] Failed to cancel scan:', error)
+        alert(`Failed to cancel scan: ${error.error || 'Unknown error'}`)
       }
     } catch (error) {
-      console.error('Failed to cancel scan:', error)
+      console.error('[ScanMonitor] Exception cancelling scan:', error)
+      alert('Failed to cancel scan. Please try the reset button instead.')
     }
   }
 

@@ -8,7 +8,7 @@ const TABLES = {
 // PATCH - Update queue item (pause/resume/cancel)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -19,7 +19,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const queueId = params.id
+    const { id: queueId } = await params
     const body = await request.json()
     const { action } = body
 
@@ -116,7 +116,7 @@ export async function PATCH(
 // DELETE - Remove queue item
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -127,7 +127,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const queueId = params.id
+    const { id: queueId } = await params
 
     // Only allow deletion of completed, failed, or cancelled items
     const { data: queueItem, error: fetchError } = await supabase
