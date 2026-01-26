@@ -18,7 +18,7 @@ export interface Project {
   domain: string
   brand_variations: string[] // JSONB stored as array
   target_keywords: string[] // JSONB stored as array
-  selected_models: string[] // JSONB stored as array of model IDs
+  llm_models: string[] // JSONB stored as array of model IDs
   language: string
   scheduled_scan_enabled: boolean
   scheduled_scan_day: number | null // 0-6 (Sunday-Saturday)
