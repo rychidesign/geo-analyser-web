@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       evaluation_method,
       brand_variations,
       target_keywords,
-      selected_models
+      llm_models
     } = body
 
     // Validation
@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
       console.log('[Create Project] Validation failed: brand_variations =', brand_variations)
       return NextResponse.json({ error: 'At least one brand variation is required' }, { status: 400 })
     }
-    if (!selected_models?.length) {
-      console.log('[Create Project] Validation failed: selected_models =', selected_models)
+    if (!llm_models?.length) {
+      console.log('[Create Project] Validation failed: llm_models =', llm_models)
       return NextResponse.json({ error: 'At least one AI model is required' }, { status: 400 })
     }
     
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       evaluation_method: evaluation_method || 'ai',
       brand_variations: brand_variations.filter((b: string) => b.trim()),
       target_keywords: target_keywords?.filter((k: string) => k.trim()) || [],
-      selected_models: selected_models,
+      llm_models: llm_models,
       scheduled_scan_enabled: false,
       scheduled_scan_day: null,
       last_scheduled_scan_at: null,

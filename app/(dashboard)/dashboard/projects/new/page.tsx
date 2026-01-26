@@ -160,7 +160,7 @@ export default function NewProjectPage() {
           evaluation_method: evaluationMethod,
           brand_variations: brandVariations,
           target_keywords: keywords,
-          selected_models: selectedModels,
+          llm_models: selectedModels,
         }),
       })
       

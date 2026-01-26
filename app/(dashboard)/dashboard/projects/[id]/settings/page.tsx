@@ -115,7 +115,7 @@ export default function ProjectSettingsPage() {
         setKeywords(data.target_keywords || [])
         setScheduledEnabled(data.scheduled_scan || false)
         setScheduledDay(data.scheduled_day?.toString() || '1')
-        setSelectedModels(data.selected_models || ['gpt-5-nano'])
+        setSelectedModels(data.llm_models || ['gpt-5-nano'])
       }
     } catch (error) {
       console.error('Error loading project:', error)
@@ -171,7 +171,7 @@ export default function ProjectSettingsPage() {
           target_keywords: keywords,
           scheduled_scan: scheduledEnabled,
           scheduled_day: parseInt(scheduledDay),
-          selected_models: selectedModels,
+          llm_models: selectedModels,
         }),
       })
       

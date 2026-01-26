@@ -58,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       'target_keywords',
       'scheduled_scan_enabled', 
       'scheduled_scan_day',
-      'selected_models'
+      'llm_models'
     ]
     
     const updates: Record<string, any> = {}
