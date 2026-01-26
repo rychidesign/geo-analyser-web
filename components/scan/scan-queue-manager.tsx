@@ -152,7 +152,9 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
       })
 
       if (!startRes.ok) {
-        throw new Error('Failed to start scan')
+        const errorData = await startRes.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('[Queue] Start scan error:', errorData)
+        throw new Error(errorData.error || `Failed to start scan (${startRes.status})`)
       }
 
       const { scanId, queries, models, totalOperations, evaluationMethod, brandVariations, domain } = await startRes.json()
