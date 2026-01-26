@@ -135,13 +135,13 @@ export async function POST(
           const cost = calculateCost(
             modelInfo.provider,
             modelId,
-            response.usage.inputTokens,
-            response.usage.outputTokens
+            response.inputTokens,
+            response.outputTokens
           )
 
           totalCost += cost
-          totalInputTokens += response.usage.inputTokens
-          totalOutputTokens += response.usage.outputTokens
+          totalInputTokens += response.inputTokens
+          totalOutputTokens += response.outputTokens
 
           // Save result
           const { data: result } = await supabase
@@ -153,8 +153,8 @@ export async function POST(
               query_text: query.query_text,
               ai_response_raw: response.content,
               metrics_json: metrics,
-              input_tokens: response.usage.inputTokens,
-              output_tokens: response.usage.outputTokens,
+              input_tokens: response.inputTokens,
+              output_tokens: response.outputTokens,
               cost_usd: cost,
             })
             .select()
