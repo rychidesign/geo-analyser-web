@@ -78,7 +78,7 @@ export async function POST(
 
     // Get queries
     const { data: queries } = await supabase
-      .from(TABLES.QUERIES)
+      .from(TABLES.PROJECT_QUERIES)
       .select('*')
       .in('id', queryIds)
       .eq('project_id', projectId)

@@ -34,7 +34,7 @@ export async function POST(
 
     // Get active queries
     const { data: queries, error: queriesError } = await supabase
-      .from(TABLES.QUERIES)
+      .from(TABLES.PROJECT_QUERIES)
       .select('*')
       .eq('project_id', projectId)
       .eq('is_active', true)
