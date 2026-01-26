@@ -93,7 +93,36 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
     processingRef.current = false
   }, [])
 
-  // Process queue (chunk by chunk)
+  // Helper: Analyze response using regex
+  const analyzeResponse = useCallback((response: string, brandVariations: string[], domain: string) => {
+    const lowerResponse = response.toLowerCase()
+    
+    const brandMentioned = brandVariations.some(brand => 
+      lowerResponse.includes(brand.toLowerCase())
+    )
+    
+    const domainMentioned = lowerResponse.includes(domain.toLowerCase())
+    
+    const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier']
+    const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing']
+    
+    const positiveCount = positiveWords.filter(word => lowerResponse.includes(word)).length
+    const negativeCount = negativeWords.filter(word => lowerResponse.includes(word)).length
+    
+    const sentimentScore = positiveCount > 0 ? 
+      (negativeCount > 0 ? 50 : 75) : 
+      (negativeCount > 0 ? 25 : 50)
+    
+    return {
+      visibility_score: brandMentioned ? 100 : 0,
+      sentiment_score: brandMentioned ? sentimentScore : 0,
+      citation_score: domainMentioned ? 100 : 0,
+      ranking_score: brandMentioned ? (positiveCount > 0 ? 90 : 50) : 0,
+      recommendation_score: brandMentioned ? sentimentScore : 0,
+    }
+  }, [])
+
+  // Process queue (frontend-driven)
   const processQueue = useCallback(async () => {
     if (processingRef.current) return
     
@@ -126,7 +155,7 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
         throw new Error('Failed to start scan')
       }
 
-      const { scanId, queries, models, totalOperations } = await startRes.json()
+      const { scanId, queries, models, totalOperations, evaluationMethod, brandVariations, domain } = await startRes.json()
 
       setQueue(prev => prev.map(job =>
         job.projectId === nextJob.projectId
@@ -134,50 +163,88 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
           : job
       ))
 
-      // Process chunks
+      // Process each query × model (frontend orchestration)
       let completed = 0
-      const chunkSize = 1 // Process 1 query × 1 model per chunk (safe for Hobby plan)
 
       for (let qIdx = 0; qIdx < queries.length; qIdx++) {
         const query = queries[qIdx]
         
-        // Process models in chunks
-        for (let mIdx = 0; mIdx < models.length; mIdx += chunkSize) {
-          const modelChunk = models.slice(mIdx, Math.min(mIdx + chunkSize, models.length))
+        for (let mIdx = 0; mIdx < models.length; mIdx++) {
+          const model = models[mIdx]
           
-          console.log(`[Queue] Processing chunk: query ${qIdx+1}/${queries.length}, models ${mIdx+1}-${Math.min(mIdx+chunkSize, models.length)}/${models.length}`)
+          console.log(`[Queue] Processing: query ${qIdx+1}/${queries.length}, model ${mIdx+1}/${models.length} (${model})`)
 
-          const chunkRes = await fetch(`/api/projects/${nextJob.projectId}/scan/chunk`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              scanId,
-              queryIds: [query.id],
-              modelIds: modelChunk,
-            }),
-            signal: abortControllerRef.current.signal,
-          })
+          try {
+            // 1. Call LLM via thin proxy (can take 10-60s, but frontend waits)
+            const llmRes = await fetch('/api/llm/call', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: model,
+                query: query.query_text,
+              }),
+              signal: abortControllerRef.current.signal,
+            })
 
-          if (!chunkRes.ok) {
-            throw new Error(`Chunk failed: ${chunkRes.statusText}`)
+            if (!llmRes.ok) {
+              const errorData = await llmRes.json()
+              console.warn(`[Queue] LLM call failed for ${model}: ${errorData.error}`)
+              continue // Skip this model, continue with others
+            }
+
+            const llmResult = await llmRes.json()
+
+            // 2. Analyze response (frontend)
+            const metrics = analyzeResponse(llmResult.content, brandVariations, domain)
+
+            // 3. Save result (fast endpoint < 1s)
+            const saveRes = await fetch('/api/scan/save-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                scanId,
+                model: model,
+                query: query.query_text,
+                response: llmResult.content,
+                inputTokens: llmResult.inputTokens,
+                outputTokens: llmResult.outputTokens,
+                metrics,
+              }),
+              signal: abortControllerRef.current.signal,
+            })
+
+            if (!saveRes.ok) {
+              console.warn(`[Queue] Failed to save result for ${model}`)
+              continue
+            }
+
+            completed++
+
+            // Update progress
+            setQueue(prev => prev.map(job =>
+              job.projectId === nextJob.projectId
+                ? { ...job, progress: { completed, total: totalOperations } }
+                : job
+            ))
+
+          } catch (err: any) {
+            if (err.name === 'AbortError') throw err
+            console.warn(`[Queue] Error processing ${model}:`, err.message)
+            // Continue with next model
           }
-
-          const chunkResult = await chunkRes.json()
-          completed += chunkResult.successful || 0
-
-          // Update progress
-          setQueue(prev => prev.map(job =>
-            job.projectId === nextJob.projectId
-              ? { ...job, progress: { completed, total: totalOperations } }
-              : job
-          ))
 
           // Small delay to avoid rate limits
           await new Promise(resolve => setTimeout(resolve, 500))
         }
       }
 
-      // Mark as completed
+      // Mark scan as completed
+      await fetch(`/api/projects/${nextJob.projectId}/scan/${scanId}/complete`, {
+        method: 'POST',
+        signal: abortControllerRef.current.signal,
+      })
+
+      // Mark as completed in UI
       setQueue(prev => prev.map(job =>
         job.projectId === nextJob.projectId
           ? { ...job, status: 'completed' as const }
@@ -186,7 +253,7 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
 
       onScanComplete?.(nextJob.projectId)
       
-      console.log(`[Queue] Scan completed for project ${nextJob.projectId}`)
+      console.log(`[Queue] Scan completed for project ${nextJob.projectId}: ${completed}/${totalOperations} successful`)
 
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -216,7 +283,7 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
         }
       }, 1000)
     }
-  }, [queue, onScanComplete, onScanError])
+  }, [queue, onScanComplete, onScanError, analyzeResponse])
 
   // Auto-process queue when new jobs added
   useEffect(() => {

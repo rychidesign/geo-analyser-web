@@ -44,7 +44,7 @@ export async function POST(
     }
 
     // Check if user has selected models
-    const selectedModels = (project.selected_models || []) as string[]
+    const selectedModels = (project.llm_models || []) as string[]
     if (selectedModels.length === 0) {
       return NextResponse.json({ error: 'No models selected' }, { status: 400 })
     }
@@ -78,8 +78,11 @@ export async function POST(
     return NextResponse.json({
       scanId: scan.id,
       totalOperations,
-      queries: queries.map(q => ({ id: q.id, text: q.query_text })),
+      queries: queries.map(q => ({ id: q.id, query_text: q.query_text })),
       models: selectedModels,
+      evaluationMethod: project.evaluation_method || 'regex',
+      brandVariations: project.brand_variations || [],
+      domain: project.domain,
     })
   } catch (error: any) {
     console.error('[Scan Start] Error:', error)
