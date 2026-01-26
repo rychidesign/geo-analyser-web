@@ -29,6 +29,30 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
   const processingRef = useRef(false)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  // Load queue from localStorage on mount
+  useEffect(() => {
+    const savedQueue = localStorage.getItem('scan_queue')
+    if (savedQueue) {
+      try {
+        const parsed = JSON.parse(savedQueue)
+        setQueue(parsed)
+        console.log('[Queue] Restored from localStorage:', parsed)
+      } catch (e) {
+        console.error('[Queue] Failed to parse saved queue:', e)
+      }
+    }
+  }, [])
+
+  // Save queue to localStorage whenever it changes
+  useEffect(() => {
+    if (queue.length > 0) {
+      localStorage.setItem('scan_queue', JSON.stringify(queue))
+      console.log('[Queue] Saved to localStorage:', queue.length, 'jobs')
+    } else {
+      localStorage.removeItem('scan_queue')
+    }
+  }, [queue])
+
   // Add scan to queue
   const addToQueue = useCallback((projectId: string, projectName: string) => {
     setQueue(prev => {
