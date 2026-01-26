@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { DashboardSidebar } from './sidebar'
 import { MobileHeader } from './mobile-header'
-import { ScanStatusBar } from './scan-status-bar'
 import { ScanProvider } from '@/lib/scan/scan-context'
 import type { User } from '@supabase/supabase-js'
 
@@ -20,9 +19,6 @@ export function DashboardLayoutClient({ user, children }: DashboardLayoutClientP
       <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
         {/* Mobile Header - visible only on mobile */}
         <MobileHeader onMenuClick={() => setSidebarOpen(true)} />
-
-        {/* Scan Status Bar - shows when scans are running */}
-        <ScanStatusBar />
 
         {/* Main Layout */}
         <div className="flex-1 flex overflow-hidden">

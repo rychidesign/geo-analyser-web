@@ -5,7 +5,7 @@ import { callLLM, GEO_SYSTEM_PROMPT } from '@/lib/llm'
 import type { LLMModel } from '@/lib/llm/types'
 
 export const runtime = 'edge'
-export const maxDuration = 25
+export const maxDuration = 60  // Increased timeout for LLM calls
 
 /**
  * Thin proxy endpoint for LLM calls
@@ -72,10 +72,27 @@ export async function POST(request: NextRequest) {
       duration,
     })
   } catch (error: any) {
-    console.error('[LLM Proxy] Error:', error)
+    const duration = Date.now() - startTime
+    console.error(`[LLM Proxy] Error after ${duration}ms:`, error.message || error)
+    
+    // Provide more specific error messages
+    let errorMessage = error.message || 'LLM call failed'
+    let status = 500
+    
+    if (error.message?.includes('model') || error.message?.includes('Model')) {
+      errorMessage = `Invalid model or model not available: ${error.message}`
+      status = 400
+    } else if (error.message?.includes('API key') || error.message?.includes('authentication') || error.message?.includes('401')) {
+      errorMessage = 'Invalid API key or authentication failed'
+      status = 401
+    } else if (error.message?.includes('rate') || error.message?.includes('429')) {
+      errorMessage = 'Rate limit exceeded. Please try again later.'
+      status = 429
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'LLM call failed' },
-      { status: 500 }
+      { error: errorMessage, duration },
+      { status }
     )
   }
 }

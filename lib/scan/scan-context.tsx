@@ -127,7 +127,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
   const processingRef = useRef(false)
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
   
-  // BUG 1 FIX: Use a ref to always have access to the latest jobs state
+  // Use a ref to always have access to the latest jobs state
   const jobsRef = useRef<ScanJob[]>(jobs)
   useEffect(() => {
     jobsRef.current = jobs
@@ -289,7 +289,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
       processingRef.current = false
       abortControllersRef.current.delete(nextJob.projectId)
       
-      // BUG 1 FIX: Use jobsRef.current instead of stale jobs closure
+      // Use jobsRef.current instead of stale jobs closure
       // Process next job after short delay
       setTimeout(() => {
         const currentJobs = jobsRef.current

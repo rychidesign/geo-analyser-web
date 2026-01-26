@@ -105,7 +105,6 @@ export async function POST(request: NextRequest) {
       .eq('usage_type', 'scan')
       .single()
 
-    // BUG 2 FIX: Add error handling for monthly usage operations
     if (existingUsage) {
       // Update existing record
       const { error: usageUpdateError } = await supabase
@@ -119,15 +118,15 @@ export async function POST(request: NextRequest) {
       
       if (usageUpdateError) {
         console.error('[Save Result] Failed to update monthly usage:', usageUpdateError)
-        // Return error to client so they know usage tracking failed
         return NextResponse.json({ 
           error: 'Result saved but failed to update usage statistics',
           resultId: result.id,
           cost 
         }, { status: 500 })
       }
-    } else if (!usageSelectError || usageSelectError.code === 'PGRST116') {
-      // No existing record (PGRST116 = no rows returned) - create new one
+    } else if (usageSelectError?.code === 'PGRST116') {
+      // FIX: Only create new record when specifically receiving PGRST116 (no rows returned)
+      // This is the only valid case for inserting - when .single() found no matching rows
       const { error: usageInsertError } = await supabase
         .from(TABLES.MONTHLY_USAGE)
         .insert({
@@ -150,8 +149,8 @@ export async function POST(request: NextRequest) {
           cost 
         }, { status: 500 })
       }
-    } else {
-      // Unexpected error from select
+    } else if (usageSelectError) {
+      // Unexpected error from select (not PGRST116)
       console.error('[Save Result] Failed to check monthly usage:', usageSelectError)
       return NextResponse.json({ 
         error: 'Result saved but failed to check usage statistics',
@@ -159,6 +158,8 @@ export async function POST(request: NextRequest) {
         cost 
       }, { status: 500 })
     }
+    // Note: If existingUsage is null and there's no error, something unexpected happened
+    // with Supabase's .single() - this shouldn't occur normally, but we don't crash
 
     console.log(`[Save Result] Saved result for scan ${scanId}, model ${model}, cost: $${cost.toFixed(6)}`)
 

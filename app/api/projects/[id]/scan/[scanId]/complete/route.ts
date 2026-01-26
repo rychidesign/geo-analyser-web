@@ -149,8 +149,8 @@ export async function POST(
           if (updateUsageError) {
             console.error(`[Complete Scan] Failed to update scan_count for ${provider}/${model}:`, updateUsageError)
           }
-        } else if (!selectError || selectError.code === 'PGRST116') {
-          // BUG 3 FIX: No existing record - create one with scan_count = 1
+        } else if (selectError?.code === 'PGRST116') {
+          // FIX: Only create new record when specifically receiving PGRST116 (no rows returned)
           // This handles the case where results were saved but monthly_usage wasn't created
           const { error: insertError } = await supabase
             .from(TABLES.MONTHLY_USAGE)
@@ -169,9 +169,12 @@ export async function POST(
           if (insertError) {
             console.error(`[Complete Scan] Failed to create monthly_usage for ${provider}/${model}:`, insertError)
           }
-        } else {
+        } else if (selectError) {
+          // Unexpected error (not PGRST116)
           console.error(`[Complete Scan] Failed to check monthly_usage for ${provider}/${model}:`, selectError)
         }
+        // Note: If existing is null and there's no error, something unexpected happened
+        // with Supabase's .single() - this shouldn't occur normally
       }
     }
 
