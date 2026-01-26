@@ -38,11 +38,11 @@ export async function GET(
     // Get project to calculate total expected results
     const { data: project } = await supabase
       .from(TABLES.PROJECTS)
-      .select('selected_models')
+      .select('llm_models')
       .eq('id', projectId)
       .single()
 
-    const selectedModels = (project?.selected_models || []) as string[]
+    const selectedModels = (project?.llm_models || []) as string[]
     const totalExpected = scan.total_queries * selectedModels.length
     const completed = scan.total_results || 0
 

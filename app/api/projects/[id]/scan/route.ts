@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Get selected models from project
-    const selectedModels = (project.selected_models || ['gpt-5-nano']) as LLMModel[]
+    const selectedModels = (project.llm_models || ['gpt-5-nano']) as LLMModel[]
     if (selectedModels.length === 0) {
       return NextResponse.json({ 
         error: 'No AI models selected. Go to Project Settings to select models.' 
