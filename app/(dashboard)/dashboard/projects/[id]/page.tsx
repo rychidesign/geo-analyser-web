@@ -23,7 +23,8 @@ import {
   Target,
   Award,
   ThumbsUp,
-  Cpu
+  Cpu,
+  Trash2
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -99,6 +100,28 @@ export default function ProjectPage() {
     }
   }
 
+  const deleteAllScans = async () => {
+    if (!confirm(`Are you sure you want to delete ALL ${scans.length} scans? This action cannot be undone and will affect your statistics.`)) {
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/scans/delete-all`, {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to delete scans')
+      }
+
+      const result = await res.json()
+      setInfo(`Successfully deleted ${result.deletedCount} scans`)
+      loadProject() // Reload to show updated list
+    } catch (err: any) {
+      setError(`Failed to delete scans: ${err.message}`)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -135,6 +158,16 @@ export default function ProjectPage() {
             <h1 className="text-xl font-semibold">{project.name}</h1>
           </div>
           <div className="flex gap-3">
+            {scans.length > 0 && (
+              <Button 
+                variant="outline" 
+                className="border-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                onClick={deleteAllScans}
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete All ({scans.length})
+              </Button>
+            )}
             <Link href={`/dashboard/projects/${projectId}/settings`}>
               <Button variant="outline" className="border-0">
                 <Settings className="w-4 h-4" />
