@@ -133,7 +133,6 @@ export async function POST(
 
           // Calculate cost
           const cost = calculateCost(
-            modelInfo.provider,
             modelId,
             response.inputTokens,
             response.outputTokens
