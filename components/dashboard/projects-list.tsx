@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FolderOpen, Plus, ExternalLink, Calendar } from 'lucide-react'
+import { FolderOpen, Plus, ExternalLink, Calendar, Loader2, Clock } from 'lucide-react'
 import { MultiScanDialog } from './multi-scan-dialog'
+import { useScan } from '@/lib/scan/scan-context'
 import type { Project } from '@/lib/db/schema'
 
 interface ProjectsListProps {
@@ -12,6 +13,8 @@ interface ProjectsListProps {
 }
 
 export function ProjectsList({ projects }: ProjectsListProps) {
+  const { jobs, getJobForProject } = useScan()
+
   if (projects.length === 0) {
     return (
       <Card className="border-dashed">
@@ -45,30 +48,80 @@ export function ProjectsList({ projects }: ProjectsListProps) {
 
       {/* Projects grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
-          <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
-            <Card className="hover:border-zinc-700 transition-colors cursor-pointer">
-              <CardHeader>
-                <CardTitle className="text-base">{project.name}</CardTitle>
-                <CardDescription className="flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3" />
-                  {project.domain}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-1 text-zinc-500">
-                    <Calendar className="w-4 h-4" />
-                    {new Date(project.created_at).toLocaleDateString('en-US')}
+        {projects.map((project) => {
+          const job = getJobForProject(project.id)
+          const isRunning = job?.status === 'running'
+          const isQueued = job?.status === 'queued'
+          
+          return (
+            <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
+              <Card className="hover:border-zinc-700 transition-colors cursor-pointer relative overflow-hidden">
+                {/* Scan status indicator */}
+                {(isRunning || isQueued) && (
+                  <div className={`absolute top-0 left-0 right-0 h-1 ${
+                    isRunning ? 'bg-blue-500' : 'bg-zinc-600'
+                  }`}>
+                    {isRunning && job?.progress.total > 0 && (
+                      <div 
+                        className="h-full bg-blue-400 transition-all duration-300"
+                        style={{ width: `${(job.progress.current / job.progress.total) * 100}%` }}
+                      />
+                    )}
                   </div>
-                  <div className="text-zinc-400">
-                    {project.brand_variations.length} brands
+                )}
+                
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="text-base">{project.name}</CardTitle>
+                    {isRunning && (
+                      <div className="flex items-center gap-1.5 text-blue-400">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span className="text-xs">Running</span>
+                      </div>
+                    )}
+                    {isQueued && (
+                      <div className="flex items-center gap-1.5 text-zinc-400">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span className="text-xs">Queued</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+                  <CardDescription className="flex items-center gap-1">
+                    <ExternalLink className="w-3 h-3" />
+                    {project.domain}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-1 text-zinc-500">
+                      <Calendar className="w-4 h-4" />
+                      {new Date(project.created_at).toLocaleDateString('en-US')}
+                    </div>
+                    <div className="text-zinc-400">
+                      {project.brand_variations.length} brands
+                    </div>
+                  </div>
+                  
+                  {/* Progress bar for running scans */}
+                  {isRunning && job?.progress.total > 0 && (
+                    <div className="mt-3 pt-3 border-t border-zinc-800">
+                      <div className="flex items-center justify-between text-xs text-zinc-500 mb-1">
+                        <span>Progress</span>
+                        <span>{job.progress.current}/{job.progress.total}</span>
+                      </div>
+                      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-500 transition-all duration-300"
+                          style={{ width: `${(job.progress.current / job.progress.total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
       </div>
     </>
   )

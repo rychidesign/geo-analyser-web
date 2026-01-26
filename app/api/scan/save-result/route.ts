@@ -8,7 +8,7 @@ export const runtime = 'edge'
 export const maxDuration = 10
 
 /**
- * Fast endpoint to save a single scan result
+ * Fast endpoint to save a single scan result and update monthly usage
  * Frontend calls this after getting LLM response
  */
 export async function POST(request: NextRequest) {
@@ -86,9 +86,51 @@ export async function POST(request: NextRequest) {
         .eq('id', scanId)
     }
 
-    console.log(`[Save Result] Saved result for scan ${scanId}, model ${model}`)
+    // Update monthly usage for cost tracking
+    const month = new Date().toISOString().slice(0, 7) // Format: '2026-01'
+    
+    // Try to update existing record
+    const { data: existingUsage } = await supabase
+      .from(TABLES.MONTHLY_USAGE)
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('month', month)
+      .eq('provider', modelInfo.provider)
+      .eq('model', model)
+      .eq('usage_type', 'scan')
+      .single()
 
-    return NextResponse.json({ success: true, resultId: result.id })
+    if (existingUsage) {
+      // Update existing record
+      await supabase
+        .from(TABLES.MONTHLY_USAGE)
+        .update({
+          total_input_tokens: existingUsage.total_input_tokens + inputTokens,
+          total_output_tokens: existingUsage.total_output_tokens + outputTokens,
+          total_cost_usd: existingUsage.total_cost_usd + cost,
+          // Don't increment scan_count here - do it per scan, not per result
+        })
+        .eq('id', existingUsage.id)
+    } else {
+      // Create new record
+      await supabase
+        .from(TABLES.MONTHLY_USAGE)
+        .insert({
+          user_id: user.id,
+          month,
+          provider: modelInfo.provider,
+          model,
+          usage_type: 'scan',
+          total_input_tokens: inputTokens,
+          total_output_tokens: outputTokens,
+          total_cost_usd: cost,
+          scan_count: 0, // Will be incremented when scan completes
+        })
+    }
+
+    console.log(`[Save Result] Saved result for scan ${scanId}, model ${model}, cost: $${cost.toFixed(6)}`)
+
+    return NextResponse.json({ success: true, resultId: result.id, cost })
   } catch (error: any) {
     console.error('[Save Result] Error:', error)
     return NextResponse.json(

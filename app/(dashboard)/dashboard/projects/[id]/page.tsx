@@ -24,13 +24,15 @@ import {
   Award,
   ThumbsUp,
   Cpu,
-  Trash2
+  Trash2,
+  Square,
+  Pause
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ScanQueueManager } from '@/components/scan/scan-queue-manager'
 import { MetricsChart } from '@/components/charts/metrics-chart'
+import { useScan } from '@/lib/scan/scan-context'
 import type { Project, ProjectQuery, Scan } from '@/lib/db/schema'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -39,18 +41,35 @@ export default function ProjectPage() {
   const params = useParams()
   const router = useRouter()
   const projectId = params.id as string
+  const { startScan, cancelScan, getJobForProject, hasActiveJob } = useScan()
 
   const [project, setProject] = useState<Project | null>(null)
   const [queries, setQueries] = useState<ProjectQuery[]>([])
   const [scans, setScans] = useState<Scan[]>([])
   const [loading, setLoading] = useState(true)
-  const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+
+  // Get current scan job status
+  const currentJob = getJobForProject(projectId)
+  const isScanning = currentJob?.status === 'running'
+  const isQueued = currentJob?.status === 'queued'
+  const hasActiveScan = hasActiveJob(projectId)
 
   useEffect(() => {
     loadProject()
   }, [projectId])
+
+  // Reload project when scan completes
+  useEffect(() => {
+    if (currentJob?.status === 'completed') {
+      loadProject()
+      setInfo('Scan completed successfully!')
+      setTimeout(() => setInfo(null), 3000)
+    } else if (currentJob?.status === 'failed') {
+      setError(`Scan failed: ${currentJob.error}`)
+    }
+  }, [currentJob?.status])
 
   const loadProject = async () => {
     try {
@@ -77,27 +96,23 @@ export default function ProjectPage() {
   }
 
   const runScan = async () => {
-    setScanning(true)
     setError(null)
+    setInfo(null)
 
     try {
-      // Add to frontend queue using ScanQueueManager
-      if (typeof window !== 'undefined' && (window as any).__addScanToQueue) {
-        (window as any).__addScanToQueue(projectId, project?.name || 'Project')
-        setInfo('Scan added to queue and will start processing shortly.')
-      } else {
-        setError('Scan queue not initialized')
-      }
-      setTimeout(() => {
-        setInfo(null)
-        loadProject() // Reload to show updated scan list
-      }, 2000)
+      await startScan(projectId, project?.name || 'Project')
+      setInfo('Scan added to queue')
+      setTimeout(() => setInfo(null), 2000)
     } catch (err: any) {
       console.error('Queue exception:', err)
       setError(`Failed to queue scan: ${err.message || err}`)
-    } finally {
-      setScanning(false)
     }
+  }
+
+  const handleCancelScan = () => {
+    cancelScan(projectId)
+    setInfo('Scan cancelled')
+    setTimeout(() => setInfo(null), 2000)
   }
 
   const deleteAllScans = async () => {
@@ -116,7 +131,7 @@ export default function ProjectPage() {
 
       const result = await res.json()
       setInfo(`Successfully deleted ${result.deletedCount} scans`)
-      loadProject() // Reload to show updated list
+      loadProject()
     } catch (err: any) {
       setError(`Failed to delete scans: ${err.message}`)
     }
@@ -174,22 +189,26 @@ export default function ProjectPage() {
                 Settings
               </Button>
             </Link>
-            <Button 
-              disabled={queries.length === 0 || scanning}
-              onClick={runScan}
-            >
-              {scanning ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Running...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Run Scan
-                </>
-              )}
-            </Button>
+            
+            {/* Scan buttons */}
+            {hasActiveScan ? (
+              <Button 
+                variant="outline"
+                className="border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                onClick={handleCancelScan}
+              >
+                <Square className="w-4 h-4" />
+                {isScanning ? 'Stop Scan' : 'Cancel'}
+              </Button>
+            ) : (
+              <Button 
+                disabled={queries.length === 0}
+                onClick={runScan}
+              >
+                <Play className="w-4 h-4" />
+                Run Scan
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -218,298 +237,327 @@ export default function ProjectPage() {
           </span>
         </div>
 
-      {/* Error */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-lg mb-6">
-          {error}
+        {/* Scan Progress */}
+        {currentJob && ['running', 'queued'].includes(currentJob.status) && (
+          <Card className="mb-6 border-blue-500/30 bg-blue-500/5">
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  {isScanning ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  ) : (
+                    <Clock className="w-4 h-4 text-zinc-400" />
+                  )}
+                  <span className="font-medium">
+                    {isScanning ? 'Scanning in progress...' : 'Scan queued'}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  onClick={handleCancelScan}
+                >
+                  <Square className="w-3 h-3 mr-1" />
+                  {isScanning ? 'Stop' : 'Cancel'}
+                </Button>
+              </div>
+              
+              {currentJob.progress.total > 0 && (
+                <>
+                  <div className="flex items-center justify-between text-sm text-zinc-400 mb-2">
+                    <span>{currentJob.progress.message || 'Processing...'}</span>
+                    <span>{currentJob.progress.current}/{currentJob.progress.total}</span>
+                  </div>
+                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${(currentJob.progress.current / currentJob.progress.total) * 100}%` }}
+                    />
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-lg mb-6">
+            {error}
+          </div>
+        )}
+
+        {info && (
+          <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm p-4 rounded-lg mb-6">
+            {info}
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+          <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-medium text-zinc-400">Overall Score</CardTitle>
+                <Target className="w-4 h-4 text-zinc-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-400">
+                {lastScan?.overall_score ?? '-'}%
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-medium text-zinc-400">Visibility</CardTitle>
+                <Eye className="w-4 h-4 text-zinc-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-400">
+                {lastScan?.avg_visibility ?? '-'}%
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-medium text-zinc-400">Sentiment</CardTitle>
+                <Smile className="w-4 h-4 text-zinc-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-400">
+                {lastScan?.avg_sentiment ?? '-'}%
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-medium text-zinc-400">Citation</CardTitle>
+                <Quote className="w-4 h-4 text-zinc-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-400">
+                {lastScan?.avg_citation ?? '-'}%
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-medium text-zinc-400">Ranking</CardTitle>
+                <TrendingUp className="w-4 h-4 text-zinc-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-pink-400">
+                {lastScan?.avg_ranking ?? '-'}%
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      )}
 
-      {info && (
-        <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm p-4 rounded-lg mb-6">
-          {info}
-        </div>
-      )}
-
-      {/* Scan Queue Manager */}
-      <ScanQueueManager
-        onScanComplete={() => {
-          loadProject()
-          setScanning(false)
-          setInfo('Scan completed successfully!')
-        }}
-        onScanError={(projectId, error) => {
-          setScanning(false)
-          setError(`Scan failed: ${error}`)
-        }}
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xs font-medium text-zinc-400">Overall Score</CardTitle>
-              <Target className="w-4 h-4 text-zinc-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">
-              {lastScan?.overall_score ?? '-'}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xs font-medium text-zinc-400">Visibility</CardTitle>
-              <Eye className="w-4 h-4 text-zinc-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-400">
-              {lastScan?.avg_visibility ?? '-'}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xs font-medium text-zinc-400">Sentiment</CardTitle>
-              <Smile className="w-4 h-4 text-zinc-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-400">
-              {lastScan?.avg_sentiment ?? '-'}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xs font-medium text-zinc-400">Citation</CardTitle>
-              <Quote className="w-4 h-4 text-zinc-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-400">
-              {lastScan?.avg_citation ?? '-'}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xs font-medium text-zinc-400">Ranking</CardTitle>
-              <TrendingUp className="w-4 h-4 text-zinc-400" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-pink-400">
-              {lastScan?.avg_ranking ?? '-'}%
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Metrics Chart */}
-      {completedScans.length > 0 && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Metrics History
-            </CardTitle>
-            <CardDescription>
-              Track your visibility and performance over time
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MetricsChart projectId={projectId} days={30} />
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Test Queries */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
+        {/* Metrics Chart */}
+        {completedScans.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" />
-                Test Queries
+                <BarChart3 className="w-4 h-4" />
+                Metrics History
               </CardTitle>
               <CardDescription>
-                Queries that will be tested against AI models
+                Track your visibility and performance over time
               </CardDescription>
-            </div>
-            <Link href={`/dashboard/projects/${projectId}/queries`}>
-              <Button variant="outline" size="sm">
-                <Plus className="w-4 h-4" />
-                Manage Queries
-              </Button>
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {queries.length > 0 ? (
-              <div className="space-y-2">
-                {queries.slice(0, 5).map((query) => (
-                  <div 
-                    key={query.id}
-                    className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg"
-                  >
-                    <span className="text-sm">{query.query_text}</span>
-                    <span className="text-xs text-zinc-500 capitalize">
-                      {query.query_type}
-                    </span>
-                  </div>
-                ))}
-                {queries.length > 5 && (
-                  <p className="text-sm text-zinc-500 text-center pt-2">
-                    +{queries.length - 5} more queries
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <MessageSquare className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-                <p className="text-zinc-500 mb-4">No test queries yet</p>
-                <Link href={`/dashboard/projects/${projectId}/queries`}>
-                  <Button variant="outline">
-                    <Plus className="w-4 h-4" />
-                    Add Queries
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              <MetricsChart projectId={projectId} days={30} />
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Recent Scans */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Recent Scans
-            </CardTitle>
-            <CardDescription>
-              History of scan results
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {scans.length > 0 ? (
-              <div className="space-y-2">
-                {scans.slice(0, 5).map((scan) => (
-                  <Link 
-                    key={scan.id}
-                    href={`/dashboard/projects/${projectId}/scans/${scan.id}`}
-                    className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3 p-3 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors"
-                  >
-                    {/* Mobile: Two rows | Desktop: Single row */}
-                    
-                    {/* Mobile First Row / Desktop Left Section: Date, Status */}
-                    <div className="flex items-center justify-between lg:justify-start gap-3 lg:flex-1">
-                      <div className="flex items-center gap-3">
-                        <Clock className="w-4 h-4 text-zinc-500" />
-                        <span className="text-sm">
-                          {new Date(scan.created_at).toLocaleDateString('en-US')}
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          scan.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
-                          scan.status === 'failed' ? 'bg-red-500/20 text-red-400' :
-                          'bg-yellow-500/20 text-yellow-400'
-                        }`}>
-                          {scan.status}
-                        </span>
-                        {scan.evaluation_method === 'ai' && (
-                          <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
-                            <Cpu className="w-3 h-3" /> AI
-                          </Badge>
-                        )}
-                      </div>
-                      {/* Mobile: Overall Score on first row right */}
-                      {scan.status === 'completed' && scan.overall_score !== null && (
-                        <span className="lg:hidden text-sm font-semibold text-emerald-400">
-                          {scan.overall_score}%
-                        </span>
-                      )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Test Queries */}
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  Test Queries
+                </CardTitle>
+                <CardDescription>
+                  Queries that will be tested against AI models
+                </CardDescription>
+              </div>
+              <Link href={`/dashboard/projects/${projectId}/queries`}>
+                <Button variant="outline" size="sm">
+                  <Plus className="w-4 h-4" />
+                  Manage Queries
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent>
+              {queries.length > 0 ? (
+                <div className="space-y-2">
+                  {queries.slice(0, 5).map((query) => (
+                    <div 
+                      key={query.id}
+                      className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg"
+                    >
+                      <span className="text-sm">{query.query_text}</span>
+                      <span className="text-xs text-zinc-500 capitalize">
+                        {query.query_type}
+                      </span>
                     </div>
+                  ))}
+                  {queries.length > 5 && (
+                    <p className="text-sm text-zinc-500 text-center pt-2">
+                      +{queries.length - 5} more queries
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <MessageSquare className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
+                  <p className="text-zinc-500 mb-4">No test queries yet</p>
+                  <Link href={`/dashboard/projects/${projectId}/queries`}>
+                    <Button variant="outline">
+                      <Plus className="w-4 h-4" />
+                      Add Queries
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-                    {/* Mobile Second Row / Desktop Middle Section: Metrics */}
-                    {scan.status === 'completed' && (
-                      <div className="flex items-center justify-between lg:justify-start lg:flex-1">
-                        <div className="flex items-center gap-4 text-xs text-zinc-500">
-                          <span className="flex items-center gap-1">
-                            {(scan.avg_visibility ?? 0) > 0 ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                            {scan.avg_visibility ?? 0}%
+          {/* Recent Scans */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Recent Scans
+              </CardTitle>
+              <CardDescription>
+                History of scan results
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {scans.length > 0 ? (
+                <div className="space-y-2">
+                  {scans.slice(0, 5).map((scan) => (
+                    <Link 
+                      key={scan.id}
+                      href={`/dashboard/projects/${projectId}/scans/${scan.id}`}
+                      className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3 p-3 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors"
+                    >
+                      {/* Mobile First Row / Desktop Left Section: Date, Status */}
+                      <div className="flex items-center justify-between lg:justify-start gap-3 lg:flex-1">
+                        <div className="flex items-center gap-3">
+                          <Clock className="w-4 h-4 text-zinc-500" />
+                          <span className="text-sm">
+                            {new Date(scan.created_at).toLocaleDateString('en-US')}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <ThumbsUp className="w-3.5 h-3.5" />
-                            {scan.avg_sentiment ?? 50}%
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            scan.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                            scan.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {scan.status}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <Quote className="w-3.5 h-3.5" />
-                            {scan.avg_citation ?? 0}%
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Award className="w-3.5 h-3.5" />
-                            {scan.avg_ranking ?? 0}%
-                          </span>
+                          {scan.evaluation_method === 'ai' && (
+                            <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
+                              <Cpu className="w-3 h-3" /> AI
+                            </Badge>
+                          )}
                         </div>
-                        {/* Mobile: Cost on second row right */}
-                        <span className="lg:hidden text-xs text-zinc-500">
-                          ${scan.total_cost_usd.toFixed(4)}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Desktop Only: Right Section with Overall Score and Cost */}
-                    {scan.status === 'completed' && (
-                      <div className="hidden lg:flex items-center gap-4">
-                        {scan.overall_score !== null && (
-                          <span className="text-sm font-semibold text-emerald-400">
+                        {/* Mobile: Overall Score on first row right */}
+                        {scan.status === 'completed' && scan.overall_score !== null && (
+                          <span className="lg:hidden text-sm font-semibold text-emerald-400">
                             {scan.overall_score}%
                           </span>
                         )}
-                        <span className="text-xs text-zinc-500">
-                          ${scan.total_cost_usd.toFixed(4)}
-                        </span>
                       </div>
+
+                      {/* Mobile Second Row / Desktop Middle Section: Metrics */}
+                      {scan.status === 'completed' && (
+                        <div className="flex items-center justify-between lg:justify-start lg:flex-1">
+                          <div className="flex items-center gap-4 text-xs text-zinc-500">
+                            <span className="flex items-center gap-1">
+                              {(scan.avg_visibility ?? 0) > 0 ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                              {scan.avg_visibility ?? 0}%
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <ThumbsUp className="w-3.5 h-3.5" />
+                              {scan.avg_sentiment ?? 50}%
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Quote className="w-3.5 h-3.5" />
+                              {scan.avg_citation ?? 0}%
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Award className="w-3.5 h-3.5" />
+                              {scan.avg_ranking ?? 0}%
+                            </span>
+                          </div>
+                          {/* Mobile: Cost on second row right */}
+                          <span className="lg:hidden text-xs text-zinc-500">
+                            ${scan.total_cost_usd.toFixed(4)}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Desktop Only: Right Section with Overall Score and Cost */}
+                      {scan.status === 'completed' && (
+                        <div className="hidden lg:flex items-center gap-4">
+                          {scan.overall_score !== null && (
+                            <span className="text-sm font-semibold text-emerald-400">
+                              {scan.overall_score}%
+                            </span>
+                          )}
+                          <span className="text-xs text-zinc-500">
+                            ${scan.total_cost_usd.toFixed(4)}
+                          </span>
+                        </div>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <BarChart3 className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
+                  <p className="text-zinc-500 mb-4">No scans yet</p>
+                  <Button 
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                    disabled={queries.length === 0 || hasActiveScan}
+                    onClick={runScan}
+                  >
+                    {hasActiveScan ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {isScanning ? 'Running...' : 'Queued'}
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4" />
+                        Run First Scan
+                      </>
                     )}
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <BarChart3 className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-                <p className="text-zinc-500 mb-4">No scans yet</p>
-                <Button 
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                  disabled={queries.length === 0 || scanning}
-                  onClick={runScan}
-                >
-                  {scanning ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Running...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" />
-                      Run First Scan
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </>
   )

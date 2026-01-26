@@ -12,11 +12,13 @@ import {
   Plus,
   CreditCard,
   Loader2,
-  X
+  X,
+  Clock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { useScan } from '@/lib/scan/scan-context'
 import type { User } from '@supabase/supabase-js'
 
 interface DashboardSidebarProps {
@@ -30,6 +32,10 @@ export function DashboardSidebar({ user, isOpen = false, onClose }: DashboardSid
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
   const supabase = createClient()
+  const { jobs } = useScan()
+
+  // Get active jobs for sidebar display
+  const activeJobs = jobs.filter(job => ['running', 'queued'].includes(job.status))
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -119,6 +125,46 @@ export function DashboardSidebar({ user, isOpen = false, onClose }: DashboardSid
             <Plus className="w-4 h-4" />
             New Project
           </Link>
+
+          {/* Active Scans Section */}
+          {activeJobs.length > 0 && (
+            <>
+              <div className="py-2">
+                <div className="h-px bg-zinc-800" />
+              </div>
+              
+              <div className="px-3 py-2">
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                  Active Scans
+                </p>
+                <div className="space-y-1">
+                  {activeJobs.map((job) => (
+                    <Link
+                      key={job.projectId}
+                      href={`/dashboard/projects/${job.projectId}`}
+                      onClick={onClose}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800/50 transition-colors"
+                    >
+                      {job.status === 'running' ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-blue-400 shrink-0" />
+                      ) : (
+                        <Clock className="w-3 h-3 text-zinc-500 shrink-0" />
+                      )}
+                      <span className="text-sm truncate flex-1">{job.projectName}</span>
+                      <span className={cn(
+                        "text-xs px-1.5 py-0.5 rounded shrink-0",
+                        job.status === 'running' 
+                          ? "bg-blue-500/10 text-blue-400" 
+                          : "bg-zinc-500/10 text-zinc-400"
+                      )}>
+                        {job.status === 'running' ? 'Running' : 'Queued'}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

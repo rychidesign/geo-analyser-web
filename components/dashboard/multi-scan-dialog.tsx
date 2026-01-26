@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import { PlayCircle, Loader2, CheckCircle2 } from 'lucide-react'
+import { PlayCircle, Loader2, CheckCircle2, Clock } from 'lucide-react'
+import { useScan } from '@/lib/scan/scan-context'
 import type { Project } from '@/lib/db/schema'
 
 interface MultiScanDialogProps {
@@ -13,6 +14,7 @@ interface MultiScanDialogProps {
 }
 
 export function MultiScanDialog({ projects, onScanStarted }: MultiScanDialogProps) {
+  const { startScan, hasActiveJob } = useScan()
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
   const [isOpen, setIsOpen] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -28,7 +30,9 @@ export function MultiScanDialog({ projects, onScanStarted }: MultiScanDialogProp
   }
 
   const selectAll = () => {
-    setSelectedProjects(new Set(projects.map(p => p.id)))
+    // Only select projects that don't have an active scan
+    const availableProjects = projects.filter(p => !hasActiveJob(p.id))
+    setSelectedProjects(new Set(availableProjects.map(p => p.id)))
   }
 
   const clearAll = () => {
@@ -40,26 +44,20 @@ export function MultiScanDialog({ projects, onScanStarted }: MultiScanDialogProp
 
     setIsStarting(true)
     try {
-      // Add to frontend queue using ScanQueueManager
-      if (typeof window !== 'undefined' && (window as any).__addScanToQueue) {
-        const selectedProjectsList = Array.from(selectedProjects)
-        for (const projectId of selectedProjectsList) {
-          const project = projects.find(p => p.id === projectId)
-          if (project) {
-            (window as any).__addScanToQueue(projectId, project.name)
-          }
+      const selectedProjectsList = Array.from(selectedProjects)
+      for (const projectId of selectedProjectsList) {
+        const project = projects.find(p => p.id === projectId)
+        if (project && !hasActiveJob(projectId)) {
+          await startScan(projectId, project.name)
         }
-        
-        // Close dialog and reset
-        setIsOpen(false)
-        setSelectedProjects(new Set())
-        onScanStarted?.()
-      } else {
-        alert('Scan queue not initialized. Please refresh the page.')
       }
+      
+      // Close dialog and reset
+      setIsOpen(false)
+      setSelectedProjects(new Set())
+      onScanStarted?.()
     } catch (error) {
       console.error('Failed to start scans:', error)
-      alert('Failed to start scans')
     } finally {
       setIsStarting(false)
     }
@@ -116,14 +114,18 @@ export function MultiScanDialog({ projects, onScanStarted }: MultiScanDialogProp
           <div className="space-y-2">
             {projects.map((project) => {
               const isSelected = selectedProjects.has(project.id)
+              const isActive = hasActiveJob(project.id)
+              
               return (
                 <div
                   key={project.id}
-                  onClick={() => toggleProject(project.id)}
-                  className={`p-4 rounded-lg border transition-colors cursor-pointer ${
-                    isSelected
-                      ? 'bg-blue-500/10 border-blue-500/50'
-                      : 'bg-zinc-800/50 border-zinc-700 hover:border-zinc-600'
+                  onClick={() => !isActive && toggleProject(project.id)}
+                  className={`p-4 rounded-lg border transition-colors ${
+                    isActive
+                      ? 'bg-zinc-800/30 border-zinc-700 cursor-not-allowed opacity-50'
+                      : isSelected
+                        ? 'bg-blue-500/10 border-blue-500/50 cursor-pointer'
+                        : 'bg-zinc-800/50 border-zinc-700 hover:border-zinc-600 cursor-pointer'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -135,13 +137,22 @@ export function MultiScanDialog({ projects, onScanStarted }: MultiScanDialogProp
                             Scheduled
                           </Badge>
                         )}
+                        {isActive && (
+                          <Badge className="border-0 bg-blue-500/10 text-blue-400 text-xs flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Active
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-sm text-zinc-500 truncate">
                         {project.domain}
                       </div>
                     </div>
-                    {isSelected && (
+                    {isSelected && !isActive && (
                       <CheckCircle2 className="w-5 h-5 text-blue-400 flex-shrink-0 ml-3" />
+                    )}
+                    {isActive && (
+                      <Clock className="w-5 h-5 text-zinc-500 flex-shrink-0 ml-3" />
                     )}
                   </div>
                 </div>
