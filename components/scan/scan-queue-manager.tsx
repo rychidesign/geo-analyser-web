@@ -93,6 +93,23 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
     processingRef.current = false
   }, [])
 
+  // Clear entire queue (useful for stuck scans)
+  const clearQueue = useCallback(() => {
+    if (!confirm('Clear entire scan queue? This will stop all scans.')) {
+      return
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
+    setQueue([])
+    setIsProcessing(false)
+    processingRef.current = false
+    localStorage.removeItem('scan_queue')
+  }, [])
+
   // Helper: Analyze response using regex
   const analyzeResponse = useCallback((response: string, brandVariations: string[], domain: string) => {
     const lowerResponse = response.toLowerCase()
@@ -305,8 +322,16 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
     <Card className="bg-zinc-900/90 border-zinc-800 mb-6">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm">Scan Queue</CardTitle>
+          <CardTitle className="text-sm">Scan Queue ({queue.length})</CardTitle>
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={clearQueue}
+              className="h-7 text-xs text-zinc-400 hover:text-zinc-100"
+            >
+              Clear All
+            </Button>
             {isProcessing && (
               <Button
                 size="sm"
