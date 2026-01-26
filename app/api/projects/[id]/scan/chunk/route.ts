@@ -5,8 +5,8 @@ import { callLLM, GEO_SYSTEM_PROMPT, calculateCost } from '@/lib/llm'
 import { AVAILABLE_MODELS, type LLMModel } from '@/lib/llm/types'
 import { TABLES, type ScanMetrics } from '@/lib/db/schema'
 
-export const runtime = 'nodejs'
-export const maxDuration = 10 // Hobby plan limit
+export const runtime = 'edge'
+export const maxDuration = 25 // Edge runtime allows up to 30s on Hobby plan
 
 // Helper: Analyze response (regex or AI)
 function analyzeResponseRegex(response: string, brandVariations: string[], domain: string): ScanMetrics {
