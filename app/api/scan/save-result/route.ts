@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (scan) {
-      await supabase
+      const { error: scanUpdateError } = await supabase
         .from(TABLES.SCANS)
         .update({
           total_cost_usd: (scan.total_cost_usd || 0) + cost,
@@ -84,13 +84,18 @@ export async function POST(request: NextRequest) {
           total_results: (scan.total_results || 0) + 1,
         })
         .eq('id', scanId)
+      
+      if (scanUpdateError) {
+        console.error('[Save Result] Failed to update scan totals:', scanUpdateError)
+        // Continue - scan result was saved successfully
+      }
     }
 
     // Update monthly usage for cost tracking
     const month = new Date().toISOString().slice(0, 7) // Format: '2026-01'
     
-    // Try to update existing record
-    const { data: existingUsage } = await supabase
+    // Try to get existing record
+    const { data: existingUsage, error: usageSelectError } = await supabase
       .from(TABLES.MONTHLY_USAGE)
       .select('*')
       .eq('user_id', user.id)
@@ -100,20 +105,30 @@ export async function POST(request: NextRequest) {
       .eq('usage_type', 'scan')
       .single()
 
+    // BUG 2 FIX: Add error handling for monthly usage operations
     if (existingUsage) {
       // Update existing record
-      await supabase
+      const { error: usageUpdateError } = await supabase
         .from(TABLES.MONTHLY_USAGE)
         .update({
           total_input_tokens: existingUsage.total_input_tokens + inputTokens,
           total_output_tokens: existingUsage.total_output_tokens + outputTokens,
           total_cost_usd: existingUsage.total_cost_usd + cost,
-          // Don't increment scan_count here - do it per scan, not per result
         })
         .eq('id', existingUsage.id)
-    } else {
-      // Create new record
-      await supabase
+      
+      if (usageUpdateError) {
+        console.error('[Save Result] Failed to update monthly usage:', usageUpdateError)
+        // Return error to client so they know usage tracking failed
+        return NextResponse.json({ 
+          error: 'Result saved but failed to update usage statistics',
+          resultId: result.id,
+          cost 
+        }, { status: 500 })
+      }
+    } else if (!usageSelectError || usageSelectError.code === 'PGRST116') {
+      // No existing record (PGRST116 = no rows returned) - create new one
+      const { error: usageInsertError } = await supabase
         .from(TABLES.MONTHLY_USAGE)
         .insert({
           user_id: user.id,
@@ -126,6 +141,23 @@ export async function POST(request: NextRequest) {
           total_cost_usd: cost,
           scan_count: 0, // Will be incremented when scan completes
         })
+      
+      if (usageInsertError) {
+        console.error('[Save Result] Failed to create monthly usage:', usageInsertError)
+        return NextResponse.json({ 
+          error: 'Result saved but failed to create usage statistics',
+          resultId: result.id,
+          cost 
+        }, { status: 500 })
+      }
+    } else {
+      // Unexpected error from select
+      console.error('[Save Result] Failed to check monthly usage:', usageSelectError)
+      return NextResponse.json({ 
+        error: 'Result saved but failed to check usage statistics',
+        resultId: result.id,
+        cost 
+      }, { status: 500 })
     }
 
     console.log(`[Save Result] Saved result for scan ${scanId}, model ${model}, cost: $${cost.toFixed(6)}`)

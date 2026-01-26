@@ -93,24 +93,43 @@ export async function POST(
     // Increment scan_count in monthly_usage for all models used
     const month = new Date().toISOString().slice(0, 7)
     
-    // Get distinct provider/model combinations from results
+    // Get distinct provider/model combinations from results with token/cost data
     const { data: distinctModels } = await supabase
       .from(TABLES.SCAN_RESULTS)
-      .select('provider, model')
+      .select('provider, model, input_tokens, output_tokens, cost_usd')
       .eq('scan_id', scanId)
 
     if (distinctModels) {
-      const uniqueModels = new Map<string, { provider: string; model: string }>()
+      // Aggregate totals per model
+      const modelAggregates = new Map<string, { 
+        provider: string
+        model: string
+        totalInputTokens: number
+        totalOutputTokens: number
+        totalCost: number
+      }>()
+      
       for (const m of distinctModels) {
         const key = `${m.provider}:${m.model}`
-        if (!uniqueModels.has(key)) {
-          uniqueModels.set(key, m)
+        const existing = modelAggregates.get(key)
+        if (existing) {
+          existing.totalInputTokens += m.input_tokens || 0
+          existing.totalOutputTokens += m.output_tokens || 0
+          existing.totalCost += m.cost_usd || 0
+        } else {
+          modelAggregates.set(key, {
+            provider: m.provider,
+            model: m.model,
+            totalInputTokens: m.input_tokens || 0,
+            totalOutputTokens: m.output_tokens || 0,
+            totalCost: m.cost_usd || 0,
+          })
         }
       }
 
       // Increment scan_count for each unique model
-      for (const { provider, model } of uniqueModels.values()) {
-        const { data: existing } = await supabase
+      for (const { provider, model, totalInputTokens, totalOutputTokens, totalCost } of modelAggregates.values()) {
+        const { data: existing, error: selectError } = await supabase
           .from(TABLES.MONTHLY_USAGE)
           .select('id, scan_count')
           .eq('user_id', user.id)
@@ -121,10 +140,37 @@ export async function POST(
           .single()
 
         if (existing) {
-          await supabase
+          // Update existing record
+          const { error: updateUsageError } = await supabase
             .from(TABLES.MONTHLY_USAGE)
             .update({ scan_count: (existing.scan_count || 0) + 1 })
             .eq('id', existing.id)
+          
+          if (updateUsageError) {
+            console.error(`[Complete Scan] Failed to update scan_count for ${provider}/${model}:`, updateUsageError)
+          }
+        } else if (!selectError || selectError.code === 'PGRST116') {
+          // BUG 3 FIX: No existing record - create one with scan_count = 1
+          // This handles the case where results were saved but monthly_usage wasn't created
+          const { error: insertError } = await supabase
+            .from(TABLES.MONTHLY_USAGE)
+            .insert({
+              user_id: user.id,
+              month,
+              provider,
+              model,
+              usage_type: 'scan',
+              total_input_tokens: totalInputTokens,
+              total_output_tokens: totalOutputTokens,
+              total_cost_usd: totalCost,
+              scan_count: 1,
+            })
+          
+          if (insertError) {
+            console.error(`[Complete Scan] Failed to create monthly_usage for ${provider}/${model}:`, insertError)
+          }
+        } else {
+          console.error(`[Complete Scan] Failed to check monthly_usage for ${provider}/${model}:`, selectError)
         }
       }
     }

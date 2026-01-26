@@ -127,11 +127,17 @@ export function ScanProvider({ children }: ScanProviderProps) {
   const processingRef = useRef(false)
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
   
+  // BUG 1 FIX: Use a ref to always have access to the latest jobs state
+  const jobsRef = useRef<ScanJob[]>(jobs)
+  useEffect(() => {
+    jobsRef.current = jobs
+  }, [jobs])
+  
   // Process the queue
   const processQueue = useCallback(async () => {
     if (processingRef.current) return
     
-    const nextJob = jobs.find(job => job.status === 'queued')
+    const nextJob = jobsRef.current.find(job => job.status === 'queued')
     if (!nextJob) {
       setIsProcessing(false)
       return
@@ -283,9 +289,11 @@ export function ScanProvider({ children }: ScanProviderProps) {
       processingRef.current = false
       abortControllersRef.current.delete(nextJob.projectId)
       
+      // BUG 1 FIX: Use jobsRef.current instead of stale jobs closure
       // Process next job after short delay
       setTimeout(() => {
-        const hasMoreJobs = jobs.some(j => j.status === 'queued' && j.projectId !== nextJob.projectId)
+        const currentJobs = jobsRef.current
+        const hasMoreJobs = currentJobs.some(j => j.status === 'queued' && j.projectId !== nextJob.projectId)
         if (hasMoreJobs) {
           processQueue()
         } else {
@@ -293,7 +301,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
         }
       }, 500)
     }
-  }, [jobs])
+  }, []) // Remove jobs from dependencies since we use jobsRef
   
   // Auto-process queue when jobs change
   useEffect(() => {
@@ -305,27 +313,29 @@ export function ScanProvider({ children }: ScanProviderProps) {
   
   // Actions
   const startScan = useCallback(async (projectId: string, projectName: string) => {
-    // Check if already has active job
-    const existingJob = jobs.find(
-      job => job.projectId === projectId && ['queued', 'running'].includes(job.status)
-    )
-    
-    if (existingJob) {
-      console.log(`[Scan] Project ${projectId} already has an active scan`)
-      return
-    }
-    
-    // Add to queue
-    const newJob: ScanJob = {
-      id: '',
-      projectId,
-      projectName,
-      status: 'queued',
-      progress: { current: 0, total: 0 },
-    }
-    
-    setJobs(prev => [...prev, newJob])
-  }, [jobs])
+    // Check if already has active job - use functional update to get current state
+    setJobs(prev => {
+      const existingJob = prev.find(
+        job => job.projectId === projectId && ['queued', 'running'].includes(job.status)
+      )
+      
+      if (existingJob) {
+        console.log(`[Scan] Project ${projectId} already has an active scan`)
+        return prev // Return unchanged
+      }
+      
+      // Add to queue
+      const newJob: ScanJob = {
+        id: '',
+        projectId,
+        projectName,
+        status: 'queued',
+        progress: { current: 0, total: 0 },
+      }
+      
+      return [...prev, newJob]
+    })
+  }, [])
   
   const cancelScan = useCallback((projectId: string) => {
     const controller = abortControllersRef.current.get(projectId)
