@@ -28,6 +28,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ScanQueueManager } from '@/components/scan/scan-queue-manager'
 import { MetricsChart } from '@/components/charts/metrics-chart'
 import type { Project, ProjectQuery, Scan } from '@/lib/db/schema'
 
@@ -48,42 +49,6 @@ export default function ProjectPage() {
 
   useEffect(() => {
     loadProject()
-  }, [projectId])
-
-  // Poll for active scans and auto-refresh when completed
-  useEffect(() => {
-    let wasScanning = false
-    
-    const checkScanStatus = async () => {
-      try {
-        const res = await fetch('/api/queue')
-        if (res.ok) {
-          const queue = await res.json()
-          const projectScans = queue.filter((item: any) => 
-            item.project_id === projectId && 
-            ['pending', 'running', 'paused'].includes(item.status)
-          )
-          
-          const isScanning = projectScans.length > 0
-          
-          // If was scanning and now finished, reload project data
-          if (wasScanning && !isScanning) {
-            console.log('[Project] Scan completed, reloading data...')
-            loadProject()
-          }
-          
-          wasScanning = isScanning
-        }
-      } catch (error) {
-        console.error('Error checking scan status:', error)
-      }
-    }
-    
-    // Check every 5 seconds
-    const interval = setInterval(checkScanStatus, 5000)
-    checkScanStatus() // Initial check
-    
-    return () => clearInterval(interval)
   }, [projectId])
 
   const loadProject = async () => {
@@ -115,28 +80,13 @@ export default function ProjectPage() {
     setError(null)
 
     try {
-      // Add project to queue
-      const res = await fetch('/api/queue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_ids: [projectId],
-          priority: 1, // Higher priority for manual scans
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        console.error('Queue error:', data)
-        setError(data.error || 'Failed to queue scan')
-        return
+      // Add to frontend queue using ScanQueueManager
+      if (typeof window !== 'undefined' && (window as any).__addScanToQueue) {
+        (window as any).__addScanToQueue(projectId, project?.name || 'Project')
+        setInfo('Scan added to queue and will start processing shortly.')
+      } else {
+        setError('Scan queue not initialized')
       }
-
-      console.log('Queue success:', data)
-
-      // Show success message and reload data
-      setInfo('Scan queued successfully. It will start processing within a minute.')
       setTimeout(() => {
         setInfo(null)
         loadProject() // Reload to show updated scan list
@@ -247,6 +197,19 @@ export default function ProjectPage() {
           {info}
         </div>
       )}
+
+      {/* Scan Queue Manager */}
+      <ScanQueueManager
+        onScanComplete={() => {
+          loadProject()
+          setScanning(false)
+          setInfo('Scan completed successfully!')
+        }}
+        onScanError={(projectId, error) => {
+          setScanning(false)
+          setError(`Scan failed: ${error}`)
+        }}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
