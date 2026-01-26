@@ -32,11 +32,11 @@ function analyzeResponseRegex(response: string, brandVariations: string[], domai
     (negativeCount > 0 ? 25 : 50)
   
   return {
-    is_visible: brandMentioned,
+    visibility_score: brandMentioned ? 100 : 0,
     sentiment_score: brandMentioned ? sentimentScore : 0,
-    citation_found: domainMentioned,
-    ranking_position: brandMentioned ? (positiveCount > 0 ? 1 : 3) : null,
-    recommendation_strength: brandMentioned ? sentimentScore : 0,
+    citation_score: domainMentioned ? 100 : 0,
+    ranking_score: brandMentioned ? (positiveCount > 0 ? 90 : 50) : 0,
+    recommendation_score: brandMentioned ? sentimentScore : 0,
   }
 }
 
