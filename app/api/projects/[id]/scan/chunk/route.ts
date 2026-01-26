@@ -99,6 +99,8 @@ export async function POST(
     let totalInputTokens = 0
     let totalOutputTokens = 0
 
+    // Process all query-model combinations in parallel
+    const tasks = []
     for (const query of queries) {
       for (const modelId of modelIds) {
         const modelInfo = AVAILABLE_MODELS.find(m => m.id === modelId)
@@ -112,70 +114,99 @@ export async function POST(
           continue
         }
 
-        try {
-          // Call LLM
-          const response = await callLLM(
-            {
-              provider: modelInfo.provider,
-              apiKey: apiKey as string,
-              model: modelId as LLMModel,
-            },
-            GEO_SYSTEM_PROMPT,
-            query.query_text
-          )
+        // Create a promise for this query-model combination
+        tasks.push((async () => {
+          try {
+            // Call LLM
+            const response = await callLLM(
+              {
+                provider: modelInfo.provider,
+                apiKey: apiKey as string,
+                model: modelId as LLMModel,
+              },
+              GEO_SYSTEM_PROMPT,
+              query.query_text
+            )
 
-          // Analyze response
-          const metrics = analyzeResponseRegex(
-            response.content,
-            project.brand_variations,
-            project.domain
-          )
+            // Analyze response
+            const metrics = analyzeResponseRegex(
+              response.content,
+              project.brand_variations,
+              project.domain
+            )
 
-          // Calculate cost
-          const cost = calculateCost(
-            modelId,
-            response.inputTokens,
-            response.outputTokens
-          )
+            // Calculate cost
+            const cost = calculateCost(
+              modelId,
+              response.inputTokens,
+              response.outputTokens
+            )
 
-          totalCost += cost
-          totalInputTokens += response.inputTokens
-          totalOutputTokens += response.outputTokens
+            // Save result
+            const { data: result } = await supabase
+              .from(TABLES.SCAN_RESULTS)
+              .insert({
+                scan_id: scanId,
+                provider: modelInfo.provider,
+                model: modelId,
+                query_text: query.query_text,
+                ai_response_raw: response.content,
+                metrics_json: metrics,
+                input_tokens: response.inputTokens,
+                output_tokens: response.outputTokens,
+                cost_usd: cost,
+              })
+              .select()
+              .single()
 
-          // Save result
-          const { data: result } = await supabase
-            .from(TABLES.SCAN_RESULTS)
-            .insert({
-              scan_id: scanId,
-              provider: modelInfo.provider,
-              model: modelId,
-              query_text: query.query_text,
-              ai_response_raw: response.content,
-              metrics_json: metrics,
-              input_tokens: response.inputTokens,
-              output_tokens: response.outputTokens,
-              cost_usd: cost,
-            })
-            .select()
-            .single()
-
-          if (result) {
-            results.push({
+            return {
               queryId: query.id,
               modelId,
               success: true,
               metrics,
-            })
+              cost,
+              inputTokens: response.inputTokens,
+              outputTokens: response.outputTokens,
+              result,
+            }
+          } catch (error: any) {
+            console.error(`[Chunk] LLM error for ${modelId}:`, error.message)
+            return {
+              queryId: query.id,
+              modelId,
+              success: false,
+              error: error.message,
+              cost: 0,
+              inputTokens: 0,
+              outputTokens: 0,
+            }
           }
-        } catch (error: any) {
-          console.error(`[Chunk] LLM error for ${modelId}:`, error.message)
-          results.push({
-            queryId: query.id,
-            modelId,
-            success: false,
-            error: error.message,
-          })
-        }
+        })())
+      }
+    }
+
+    // Wait for all parallel tasks to complete
+    const taskResults = await Promise.all(tasks)
+
+    // Aggregate results
+    for (const taskResult of taskResults) {
+      if (taskResult.success) {
+        totalCost += taskResult.cost
+        totalInputTokens += taskResult.inputTokens
+        totalOutputTokens += taskResult.outputTokens
+        results.push({
+          queryId: taskResult.queryId,
+          modelId: taskResult.modelId,
+          success: true,
+          metrics: taskResult.metrics,
+        })
+      } else {
+        results.push({
+          queryId: taskResult.queryId,
+          modelId: taskResult.modelId,
+          success: false,
+          error: taskResult.error,
+        })
       }
     }
 

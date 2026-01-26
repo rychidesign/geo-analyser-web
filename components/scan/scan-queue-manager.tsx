@@ -112,7 +112,7 @@ export function ScanQueueManager({ onScanComplete, onScanError }: ScanQueueManag
 
       // Process chunks
       let completed = 0
-      const chunkSize = 2 // Process 1 query × 2 models per chunk (adaptive can be added later)
+      const chunkSize = 1 // Process 1 query × 1 model per chunk (safe for Hobby plan)
 
       for (let qIdx = 0; qIdx < queries.length; qIdx++) {
         const query = queries[qIdx]
