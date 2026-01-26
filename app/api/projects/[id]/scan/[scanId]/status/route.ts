@@ -42,7 +42,7 @@ export async function GET(
       .eq('id', projectId)
       .single()
 
-    const selectedModels = (project?.llm_models || []) as string[]
+    const selectedModels = ((project?.llm_models || project?.selected_models) || []) as string[]
     const totalExpected = scan.total_queries * selectedModels.length
     const completed = scan.total_results || 0
 

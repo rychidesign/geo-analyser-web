@@ -43,10 +43,10 @@ export async function POST(
       return NextResponse.json({ error: 'No active queries found' }, { status: 400 })
     }
 
-    // Check if user has selected models
-    const selectedModels = (project.llm_models || []) as string[]
+    // Check if user has selected models (with fallback to old field name)
+    const selectedModels = ((project.llm_models || project.selected_models) || []) as string[]
     if (selectedModels.length === 0) {
-      return NextResponse.json({ error: 'No models selected' }, { status: 400 })
+      return NextResponse.json({ error: 'No models selected. Please go to Project Settings and select at least one AI model.' }, { status: 400 })
     }
 
     // Calculate total operations

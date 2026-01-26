@@ -115,7 +115,7 @@ export default function ProjectSettingsPage() {
         setKeywords(data.target_keywords || [])
         setScheduledEnabled(data.scheduled_scan || false)
         setScheduledDay(data.scheduled_day?.toString() || '1')
-        setSelectedModels(data.llm_models || ['gpt-5-nano'])
+        setSelectedModels((data.llm_models || data.selected_models) || ['gpt-5-nano'])
       }
     } catch (error) {
       console.error('Error loading project:', error)
