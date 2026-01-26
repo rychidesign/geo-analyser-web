@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { ScanMonitor } from './scan-monitor'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
@@ -120,11 +119,6 @@ export function DashboardSidebar({ user, isOpen = false, onClose }: DashboardSid
             <Plus className="w-4 h-4" />
             New Project
           </Link>
-        </div>
-
-        {/* Scan Monitor */}
-        <div className="pt-3">
-          <ScanMonitor />
         </div>
       </div>
 

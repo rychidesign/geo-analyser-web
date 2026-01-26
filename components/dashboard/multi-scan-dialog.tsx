@@ -40,26 +40,22 @@ export function MultiScanDialog({ projects, onScanStarted }: MultiScanDialogProp
 
     setIsStarting(true)
     try {
-      const res = await fetch('/api/queue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_ids: Array.from(selectedProjects),
-          priority: 0,
-        }),
-      })
-
-      if (res.ok) {
-        // Trigger queue processing
-        fetch('/api/queue/process', { method: 'POST' })
+      // Add to frontend queue using ScanQueueManager
+      if (typeof window !== 'undefined' && (window as any).__addScanToQueue) {
+        const selectedProjectsList = Array.from(selectedProjects)
+        for (const projectId of selectedProjectsList) {
+          const project = projects.find(p => p.id === projectId)
+          if (project) {
+            (window as any).__addScanToQueue(projectId, project.name)
+          }
+        }
         
         // Close dialog and reset
         setIsOpen(false)
         setSelectedProjects(new Set())
         onScanStarted?.()
       } else {
-        const error = await res.json()
-        alert(`Failed to start scans: ${error.error}`)
+        alert('Scan queue not initialized. Please refresh the page.')
       }
     } catch (error) {
       console.error('Failed to start scans:', error)
