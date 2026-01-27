@@ -46,12 +46,15 @@ export async function callOpenAI(
     content = response.output_text
   } else if (response.output && Array.isArray(response.output)) {
     // Some models return output as array of message objects
-    const textOutput = response.output.find((o: any) => o.type === 'message' || o.content)
-    if (textOutput?.content) {
-      if (Array.isArray(textOutput.content)) {
-        content = textOutput.content.map((c: any) => c.text || c).join('')
-      } else {
-        content = textOutput.content
+    for (const item of response.output) {
+      const output = item as any
+      if (output.type === 'message' && output.content) {
+        if (Array.isArray(output.content)) {
+          content = output.content.map((c: any) => c.text || c).join('')
+        } else {
+          content = output.content
+        }
+        break
       }
     }
   }
