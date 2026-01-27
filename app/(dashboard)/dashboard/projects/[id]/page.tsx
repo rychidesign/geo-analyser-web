@@ -173,16 +173,6 @@ export default function ProjectPage() {
             <h1 className="text-xl font-semibold">{project.name}</h1>
           </div>
           <div className="flex gap-3">
-            {scans.length > 0 && (
-              <Button 
-                variant="outline" 
-                className="border-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                onClick={deleteAllScans}
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete All ({scans.length})
-              </Button>
-            )}
             <Link href={`/dashboard/projects/${projectId}/settings`}>
               <Button variant="outline" className="border-0">
                 <Settings className="w-4 h-4" />
@@ -442,14 +432,27 @@ export default function ProjectPage() {
 
           {/* Recent Scans */}
           <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4" />
-                Recent Scans
-              </CardTitle>
-              <CardDescription>
-                History of scan results
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Recent Scans
+                </CardTitle>
+                <CardDescription className="mt-1.5">
+                  History of scan results
+                </CardDescription>
+              </div>
+              {scans.length > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10 -mt-1"
+                  onClick={deleteAllScans}
+                >
+                  <Trash2 className="w-4 h-4 mr-1.5" />
+                  Delete All
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {scans.length > 0 ? (
