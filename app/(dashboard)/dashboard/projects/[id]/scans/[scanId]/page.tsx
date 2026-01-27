@@ -8,6 +8,7 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
+  StopCircle,
   Clock,
   DollarSign,
   Eye,
@@ -147,13 +148,14 @@ export default function ScanResultsPage() {
                 </span>
                 <span className={`flex items-center gap-1 ${
                   scan.status === 'completed' ? 'text-emerald-400' :
-                  scan.status === 'failed' ? 'text-red-400' :
+                  scan.status === 'failed' || scan.status === 'stopped' ? 'text-red-400' :
                   'text-yellow-400'
                 }`}>
                   {scan.status === 'completed' ? <CheckCircle className="w-4 h-4" /> :
                    scan.status === 'failed' ? <XCircle className="w-4 h-4" /> :
+                   scan.status === 'stopped' ? <StopCircle className="w-4 h-4" /> :
                    <Loader2 className="w-4 h-4 animate-spin" />}
-                  {scan.status}
+                  {scan.status === 'stopped' ? 'Stopped' : scan.status}
                 </span>
                 {scan.evaluation_method === 'ai' && (
                   <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">

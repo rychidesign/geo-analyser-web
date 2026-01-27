@@ -371,15 +371,29 @@ export function ScanProvider({ children }: ScanProviderProps) {
     })
   }, [])
   
-  const cancelScan = useCallback((projectId: string) => {
+  const cancelScan = useCallback(async (projectId: string) => {
     const controller = abortControllersRef.current.get(projectId)
     if (controller) {
       controller.abort()
     }
     
+    // Find the job to get scan ID
+    const job = jobsRef.current.find(j => j.projectId === projectId)
+    
+    // Update database if scan has started (has an ID)
+    if (job?.id) {
+      try {
+        await fetch(`/api/projects/${projectId}/scan/${job.id}/stop`, {
+          method: 'POST',
+        })
+      } catch (err) {
+        console.warn('[Scan] Failed to update scan status in database:', err)
+      }
+    }
+    
     setJobs(prev => prev.map(job => 
       job.projectId === projectId && ['queued', 'running'].includes(job.status)
-        ? { ...job, status: 'cancelled' as const, error: 'Cancelled by user' }
+        ? { ...job, status: 'cancelled' as const, error: 'Stopped by user' }
         : job
     ))
   }, [])

@@ -470,9 +470,10 @@ export default function ProjectPage() {
                           <span className={`text-xs px-2 py-0.5 rounded ${
                             scan.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
                             scan.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                            scan.status === 'stopped' ? 'bg-red-500/20 text-red-400' :
                             'bg-yellow-500/20 text-yellow-400'
                           }`}>
-                            {scan.status}
+                            {scan.status === 'stopped' ? 'Stopped' : scan.status}
                           </span>
                           {scan.evaluation_method === 'ai' && (
                             <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">

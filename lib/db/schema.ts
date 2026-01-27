@@ -42,7 +42,7 @@ export interface Scan {
   id: string
   project_id: string
   user_id: string
-  status: 'running' | 'completed' | 'failed'
+  status: 'running' | 'completed' | 'failed' | 'stopped'
   evaluation_method: 'ai' | 'regex'   // Evaluation method used for this scan
   
   // Aggregated metrics (0-100, averaged from all results)
