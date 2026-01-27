@@ -29,7 +29,7 @@ export function useToast() {
   return context
 }
 
-const TOAST_DURATION = 4000
+const TOAST_DURATION = 6000
 
 const icons: Record<ToastType, typeof CheckCircle> = {
   success: CheckCircle,
@@ -123,8 +123,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ showToast, showSuccess, showError, showInfo, showWarning }}>
       {children}
       
-      {/* Toast container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+      {/* Toast container - centered at bottom */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-md px-4">
         {toasts.map(toast => (
           <div
             key={toast.id}

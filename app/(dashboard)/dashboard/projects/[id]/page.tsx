@@ -266,7 +266,7 @@ export default function ProjectPage() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -278,6 +278,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-emerald-400">
                 {lastScan?.overall_score ?? '-'}%
               </div>
+              <p className="text-[10px] text-zinc-500 mt-1">Combined brand presence</p>
             </CardContent>
           </Card>
 
@@ -292,6 +293,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-blue-400">
                 {lastScan?.avg_visibility ?? '-'}%
               </div>
+              <p className="text-[10px] text-zinc-500 mt-1">How often brand appears</p>
             </CardContent>
           </Card>
 
@@ -306,6 +308,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-amber-400">
                 {lastScan?.avg_sentiment ?? '-'}%
               </div>
+              <p className="text-[10px] text-zinc-500 mt-1">Tone of brand mentions</p>
             </CardContent>
           </Card>
 
@@ -320,6 +323,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-purple-400">
                 {lastScan?.avg_citation ?? '-'}%
               </div>
+              <p className="text-[10px] text-zinc-500 mt-1">Direct brand references</p>
             </CardContent>
           </Card>
 
@@ -334,6 +338,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-pink-400">
                 {lastScan?.avg_ranking ?? '-'}%
               </div>
+              <p className="text-[10px] text-zinc-500 mt-1">Position in recommendations</p>
             </CardContent>
           </Card>
         </div>
