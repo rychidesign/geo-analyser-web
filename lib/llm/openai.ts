@@ -36,7 +36,7 @@ export async function callOpenAI(
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    max_tokens: 1000, // Limit response size to speed up
+    max_completion_tokens: 1000, // Limit response size to speed up (GPT-5 uses this instead of max_tokens)
   })
 
   const content = response.choices[0]?.message?.content || ''
