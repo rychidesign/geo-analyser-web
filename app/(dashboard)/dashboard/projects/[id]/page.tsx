@@ -57,6 +57,15 @@ export default function ProjectPage() {
     }
     return 5
   })
+  
+  // Load more queries - persisted in sessionStorage
+  const [visibleQueriesCount, setVisibleQueriesCount] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem(`queries-visible-${projectId}`)
+      return saved ? parseInt(saved, 10) : 5
+    }
+    return 5
+  })
 
   // Get current scan job status
   const currentJob = getJobForProject(projectId)
@@ -75,8 +84,19 @@ export default function ProjectPage() {
     }
   }, [visibleScansCount, projectId])
 
+  // Persist visible queries count to sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`queries-visible-${projectId}`, visibleQueriesCount.toString())
+    }
+  }, [visibleQueriesCount, projectId])
+
   const loadMoreScans = () => {
     setVisibleScansCount(prev => prev + 5)
+  }
+
+  const loadMoreQueries = () => {
+    setVisibleQueriesCount(prev => prev + 5)
   }
 
   // Reload project when scan completes
@@ -401,7 +421,7 @@ export default function ProjectPage() {
             <CardContent>
               {queries.length > 0 ? (
                 <div className="space-y-2">
-                  {queries.slice(0, 5).map((query) => (
+                  {queries.slice(0, visibleQueriesCount).map((query) => (
                     <div 
                       key={query.id}
                       className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg"
@@ -412,10 +432,13 @@ export default function ProjectPage() {
                       </span>
                     </div>
                   ))}
-                  {queries.length > 5 && (
-                    <p className="text-sm text-zinc-500 text-center pt-2">
-                      +{queries.length - 5} more queries
-                    </p>
+                  {queries.length > visibleQueriesCount && (
+                    <button
+                      onClick={loadMoreQueries}
+                      className="w-full text-sm text-zinc-500 hover:text-zinc-300 py-2 transition-colors"
+                    >
+                      + {Math.min(5, queries.length - visibleQueriesCount)} more quer{Math.min(5, queries.length - visibleQueriesCount) === 1 ? 'y' : 'ies'}
+                    </button>
                   )}
                 </div>
               ) : (
