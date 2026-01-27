@@ -14,6 +14,9 @@ const MODEL_MAP: Record<string, string> = {
   'gemini-2.5.flash.lite': 'gemini-2.5-flash-lite',
 }
 
+// Timeout for API calls (Vercel Hobby has 25s limit for Edge)
+const API_TIMEOUT_MS = 22000
+
 export async function callGoogle(
   config: LLMConfig,
   systemPrompt: string,
@@ -27,19 +30,36 @@ export async function callGoogle(
   const model = genAI.getGenerativeModel({ 
     model: apiModel,
     systemInstruction: systemPrompt,
+    generationConfig: {
+      maxOutputTokens: 1000, // Limit response size to speed up
+    },
   })
 
-  const result = await model.generateContent(userPrompt)
-  const response = result.response
-  const content = response.text()
+  // Use AbortController for timeout
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+  
+  try {
+    const result = await model.generateContent(userPrompt)
+    clearTimeout(timeoutId)
+    
+    const response = result.response
+    const content = response.text()
 
-  // Google returns usage metadata
-  const usageMetadata = response.usageMetadata
+    // Google returns usage metadata
+    const usageMetadata = response.usageMetadata
 
-  return {
-    content,
-    inputTokens: usageMetadata?.promptTokenCount || 0,
-    outputTokens: usageMetadata?.candidatesTokenCount || 0,
-    model: config.model, // Return our model ID for consistency
+    return {
+      content,
+      inputTokens: usageMetadata?.promptTokenCount || 0,
+      outputTokens: usageMetadata?.candidatesTokenCount || 0,
+      model: config.model, // Return our model ID for consistency
+    }
+  } catch (error: any) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error(`Google AI request timed out after ${API_TIMEOUT_MS}ms`)
+    }
+    throw error
   }
 }

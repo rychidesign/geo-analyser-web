@@ -79,7 +79,10 @@ export async function POST(request: NextRequest) {
     let errorMessage = error.message || 'LLM call failed'
     let status = 500
     
-    if (error.message?.includes('model') || error.message?.includes('Model')) {
+    if (error.message?.includes('timeout') || error.message?.includes('Timeout') || error.message?.includes('timed out')) {
+      errorMessage = 'Request timed out. The model took too long to respond. Try a faster model like gpt-5-nano or claude-haiku.'
+      status = 504
+    } else if (error.message?.includes('model') || error.message?.includes('Model')) {
       errorMessage = `Invalid model or model not available: ${error.message}`
       status = 400
     } else if (error.message?.includes('API key') || error.message?.includes('authentication') || error.message?.includes('401')) {
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json(
-      { error: errorMessage, duration },
+      { error: errorMessage, duration, timedOut: status === 504 },
       { status }
     )
   }

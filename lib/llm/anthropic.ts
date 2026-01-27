@@ -15,6 +15,9 @@ const MODEL_MAP: Record<string, string> = {
   'claude-opus-4.1': 'claude-opus-4-1',     
 }
 
+// Timeout for API calls (Vercel Hobby has 25s limit for Edge)
+const API_TIMEOUT_MS = 22000
+
 export async function callAnthropic(
   config: LLMConfig,
   systemPrompt: string,
@@ -22,6 +25,8 @@ export async function callAnthropic(
 ): Promise<LLMResponse> {
   const client = new Anthropic({
     apiKey: config.apiKey,
+    timeout: API_TIMEOUT_MS,
+    maxRetries: 0,
   })
 
   // Map to actual API model name
@@ -29,7 +34,7 @@ export async function callAnthropic(
 
   const response = await client.messages.create({
     model: apiModel,
-    max_tokens: 4096,
+    max_tokens: 1000, // Limit response size to speed up
     system: systemPrompt,
     messages: [
       { role: 'user', content: userPrompt },

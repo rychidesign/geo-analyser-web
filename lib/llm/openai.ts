@@ -13,6 +13,9 @@ const MODEL_MAP: Record<string, string> = {
   'gpt-5.nano': 'gpt-5-nano',
 }
 
+// Timeout for API calls (Vercel Hobby has 25s limit for Edge)
+const API_TIMEOUT_MS = 22000
+
 export async function callOpenAI(
   config: LLMConfig,
   systemPrompt: string,
@@ -20,6 +23,8 @@ export async function callOpenAI(
 ): Promise<LLMResponse> {
   const client = new OpenAI({
     apiKey: config.apiKey,
+    timeout: API_TIMEOUT_MS,
+    maxRetries: 0, // Don't retry on timeout
   })
 
   // Map to actual API model name
@@ -31,6 +36,7 @@ export async function callOpenAI(
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
+    max_tokens: 1000, // Limit response size to speed up
   })
 
   const content = response.choices[0]?.message?.content || ''
