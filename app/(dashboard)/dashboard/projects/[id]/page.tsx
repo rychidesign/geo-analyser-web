@@ -48,6 +48,15 @@ export default function ProjectPage() {
   const [queries, setQueries] = useState<ProjectQuery[]>([])
   const [scans, setScans] = useState<Scan[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Load more scans - persisted in sessionStorage
+  const [visibleScansCount, setVisibleScansCount] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem(`scans-visible-${projectId}`)
+      return saved ? parseInt(saved, 10) : 5
+    }
+    return 5
+  })
 
   // Get current scan job status
   const currentJob = getJobForProject(projectId)
@@ -58,6 +67,17 @@ export default function ProjectPage() {
   useEffect(() => {
     loadProject()
   }, [projectId])
+
+  // Persist visible scans count to sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`scans-visible-${projectId}`, visibleScansCount.toString())
+    }
+  }, [visibleScansCount, projectId])
+
+  const loadMoreScans = () => {
+    setVisibleScansCount(prev => prev + 5)
+  }
 
   // Reload project when scan completes
   useEffect(() => {
@@ -440,7 +460,7 @@ export default function ProjectPage() {
             <CardContent>
               {scans.length > 0 ? (
                 <div className="space-y-2">
-                  {scans.slice(0, 5).map((scan) => (
+                  {scans.slice(0, visibleScansCount).map((scan) => (
                     <Link 
                       key={scan.id}
                       href={`/dashboard/projects/${projectId}/scans/${scan.id}`}
@@ -514,6 +534,16 @@ export default function ProjectPage() {
                       )}
                     </Link>
                   ))}
+                  
+                  {/* Load more button */}
+                  {scans.length > visibleScansCount && (
+                    <button
+                      onClick={loadMoreScans}
+                      className="w-full text-sm text-zinc-500 hover:text-zinc-300 py-2 transition-colors"
+                    >
+                      + {Math.min(5, scans.length - visibleScansCount)} more scan{Math.min(5, scans.length - visibleScansCount) !== 1 ? 's' : ''}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8">
