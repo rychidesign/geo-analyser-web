@@ -44,12 +44,13 @@ export function analyzeResponseRegex(
   if (brandMentioned) visibilityScore += 50
   if (domainMentioned) visibilityScore += 50
   
-  // Sentiment analysis only from context around brand/domain mentions
+  // Sentiment analysis only if visibility > 0 (brand or domain mentioned)
+  // If visibility = 0, sentiment = 0 (not applicable)
   let sentimentScore = 0
   let rankingScore = 0
   let recommendationScore = 0
   
-  if (brandMentioned || domainMentioned) {
+  if (visibilityScore > 0) {
     // Extract only sentences that mention the brand or domain
     const brandContext = extractBrandContext(response, brandVariations, domain)
     

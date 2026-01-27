@@ -347,10 +347,9 @@ Evaluate the response on these metrics (return scores 0-100):
    - Both = 100, one = 50, neither = 0
 
 2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
-   - ONLY analyze sentences/context where brand or domain is mentioned
-   - If brand NOT mentioned at all, return 0.
-   - 0 = very negative, 50 = neutral, 100 = very positive
-   - Ignore sentiment in parts of the response that don't mention the brand
+   - If visibility_score is 0 (neither brand nor domain mentioned), return 0
+   - Otherwise, analyze ONLY sentences where brand or domain is mentioned
+   - 10 = very negative, 50 = neutral, 90 = very positive
 
 3. **Ranking Score** (0-100): If mentioned in a list, what position?
    - 100 = first/top position
@@ -466,10 +465,11 @@ function analyzeResponse(
   if (brandMentioned) visibilityScore += 50
   if (domainMentioned) visibilityScore += 50
 
-  // Sentiment Score (0-100): Only calculated from context around brand/domain mentions
+  // Sentiment Score (0-100): Only calculated if visibility > 0
+  // If visibility = 0, sentiment = 0 (not applicable)
   // 50 = neutral, 0 = negative, 100 = positive
   let sentimentScore = 0
-  if (brandMentioned || domainMentioned) {
+  if (visibilityScore > 0) {
     // Extract only sentences that mention the brand or domain
     const brandContext = extractBrandContext(content, brandVariations, domain)
     
