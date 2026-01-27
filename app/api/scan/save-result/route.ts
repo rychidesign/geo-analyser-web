@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       inputTokens,
       outputTokens,
       metrics,
+      evaluationCost, // AI evaluation cost (optional)
     } = await request.json()
 
     if (!scanId || !model || !query || !response) {
@@ -67,6 +68,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save result' }, { status: 500 })
     }
 
+    // Calculate total cost including evaluation
+    const evalCost = evaluationCost?.costUsd || 0
+    const totalCost = cost + evalCost
+
     // Update scan totals
     const { data: scan } = await supabase
       .from(TABLES.SCANS)
@@ -78,9 +83,9 @@ export async function POST(request: NextRequest) {
       const { error: scanUpdateError } = await supabase
         .from(TABLES.SCANS)
         .update({
-          total_cost_usd: (scan.total_cost_usd || 0) + cost,
-          total_input_tokens: (scan.total_input_tokens || 0) + inputTokens,
-          total_output_tokens: (scan.total_output_tokens || 0) + outputTokens,
+          total_cost_usd: (scan.total_cost_usd || 0) + totalCost,
+          total_input_tokens: (scan.total_input_tokens || 0) + inputTokens + (evaluationCost?.inputTokens || 0),
+          total_output_tokens: (scan.total_output_tokens || 0) + outputTokens + (evaluationCost?.outputTokens || 0),
           total_results: (scan.total_results || 0) + 1,
         })
         .eq('id', scanId)
@@ -88,6 +93,46 @@ export async function POST(request: NextRequest) {
       if (scanUpdateError) {
         console.error('[Save Result] Failed to update scan totals:', scanUpdateError)
         // Continue - scan result was saved successfully
+      }
+    }
+
+    // Track AI evaluation cost separately in monthly usage (if applicable)
+    if (evaluationCost && evalCost > 0) {
+      const month = new Date().toISOString().slice(0, 7)
+      
+      const { data: existingEvalUsage } = await supabase
+        .from(TABLES.MONTHLY_USAGE)
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('month', month)
+        .eq('provider', evaluationCost.provider)
+        .eq('model', evaluationCost.model)
+        .eq('usage_type', 'evaluation')
+        .single()
+
+      if (existingEvalUsage) {
+        await supabase
+          .from(TABLES.MONTHLY_USAGE)
+          .update({
+            total_input_tokens: existingEvalUsage.total_input_tokens + evaluationCost.inputTokens,
+            total_output_tokens: existingEvalUsage.total_output_tokens + evaluationCost.outputTokens,
+            total_cost_usd: existingEvalUsage.total_cost_usd + evalCost,
+          })
+          .eq('id', existingEvalUsage.id)
+      } else {
+        await supabase
+          .from(TABLES.MONTHLY_USAGE)
+          .insert({
+            user_id: user.id,
+            month,
+            provider: evaluationCost.provider,
+            model: evaluationCost.model,
+            usage_type: 'evaluation',
+            total_input_tokens: evaluationCost.inputTokens,
+            total_output_tokens: evaluationCost.outputTokens,
+            total_cost_usd: evalCost,
+            scan_count: 0,
+          })
       }
     }
 
@@ -161,9 +206,9 @@ export async function POST(request: NextRequest) {
     // Note: If existingUsage is null and there's no error, something unexpected happened
     // with Supabase's .single() - this shouldn't occur normally, but we don't crash
 
-    console.log(`[Save Result] Saved result for scan ${scanId}, model ${model}, cost: $${cost.toFixed(6)}`)
+    console.log(`[Save Result] Saved result for scan ${scanId}, model ${model}, cost: $${cost.toFixed(6)}${evalCost > 0 ? ` + eval: $${evalCost.toFixed(6)}` : ''}`)
 
-    return NextResponse.json({ success: true, resultId: result.id, cost })
+    return NextResponse.json({ success: true, resultId: result.id, cost: totalCost })
   } catch (error: any) {
     console.error('[Save Result] Error:', error)
     return NextResponse.json(

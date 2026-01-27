@@ -168,7 +168,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
         throw new Error(errorData.error || `Failed to start scan (${startRes.status})`)
       }
       
-      const { scanId, queries, models, totalOperations, brandVariations, domain } = await startRes.json()
+      const { scanId, queries, models, totalOperations, brandVariations, domain, evaluationMethod } = await startRes.json()
       
       // Update job with scan ID and progress info
       setJobs(prev => prev.map(job => 
@@ -217,8 +217,41 @@ export function ScanProvider({ children }: ScanProviderProps) {
             
             const llmResult = await llmRes.json()
             
-            // Analyze response
-            const metrics = analyzeResponse(llmResult.content, brandVariations, domain)
+            // Analyze response - use AI or regex based on project settings
+            let metrics
+            let evaluationCost = null
+            
+            if (evaluationMethod === 'ai') {
+              // Use AI evaluation
+              try {
+                const evalRes = await fetch('/api/scan/evaluate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    content: llmResult.content,
+                    brandVariations,
+                    domain,
+                  }),
+                  signal: abortController.signal,
+                })
+                
+                if (evalRes.ok) {
+                  const evalResult = await evalRes.json()
+                  metrics = evalResult.metrics
+                  evaluationCost = evalResult.evaluation
+                } else {
+                  // Fallback to regex if AI fails
+                  console.warn('[Scan] AI evaluation failed, using regex fallback')
+                  metrics = analyzeResponse(llmResult.content, brandVariations, domain)
+                }
+              } catch (evalError) {
+                console.warn('[Scan] AI evaluation error, using regex fallback:', evalError)
+                metrics = analyzeResponse(llmResult.content, brandVariations, domain)
+              }
+            } else {
+              // Use regex evaluation (default)
+              metrics = analyzeResponse(llmResult.content, brandVariations, domain)
+            }
             
             // Save result
             await fetch('/api/scan/save-result', {
@@ -232,6 +265,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
                 inputTokens: llmResult.inputTokens,
                 outputTokens: llmResult.outputTokens,
                 metrics,
+                evaluationCost, // Include AI evaluation cost if used
               }),
               signal: abortController.signal,
             })

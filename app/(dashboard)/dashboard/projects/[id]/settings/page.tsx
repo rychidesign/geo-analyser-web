@@ -113,8 +113,8 @@ export default function ProjectSettingsPage() {
         setEvaluationMethod(data.evaluation_method || 'ai')
         setBrandVariations(data.brand_variations || [])
         setKeywords(data.target_keywords || [])
-        setScheduledEnabled(data.scheduled_scan || false)
-        setScheduledDay(data.scheduled_day?.toString() || '1')
+        setScheduledEnabled(data.scheduled_scan_enabled || false)
+        setScheduledDay(data.scheduled_scan_day?.toString() || '1')
         setSelectedModels((data.llm_models || data.selected_models) || ['gpt-5-nano'])
       }
     } catch (error) {
@@ -169,8 +169,8 @@ export default function ProjectSettingsPage() {
           evaluation_method: evaluationMethod,
           brand_variations: brandVariations,
           target_keywords: keywords,
-          scheduled_scan: scheduledEnabled,
-          scheduled_day: parseInt(scheduledDay),
+          scheduled_scan_enabled: scheduledEnabled,
+          scheduled_scan_day: parseInt(scheduledDay),
           llm_models: selectedModels,
         }),
       })
