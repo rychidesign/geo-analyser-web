@@ -268,77 +268,77 @@ export default function ProjectPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-medium text-zinc-400">Overall Score</CardTitle>
+            <CardHeader className="pb-0">
+              <div className="flex items-start justify-between">
+                <div className="text-2xl font-bold text-emerald-400">
+                  {lastScan?.overall_score ?? '-'}%
+                </div>
                 <Target className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-400">
-                {lastScan?.overall_score ?? '-'}%
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Weighted average of all metrics combined</p>
+            <CardContent className="pt-4">
+              <div className="text-xs font-medium text-zinc-300 mb-1">Overall Score</div>
+              <p className="text-xs text-zinc-500">Weighted average of all metrics combined</p>
             </CardContent>
           </Card>
 
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-medium text-zinc-400">Visibility</CardTitle>
+            <CardHeader className="pb-0">
+              <div className="flex items-start justify-between">
+                <div className="text-2xl font-bold text-blue-400">
+                  {lastScan?.avg_visibility ?? '-'}%
+                </div>
                 <Eye className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-400">
-                {lastScan?.avg_visibility ?? '-'}%
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">How often your brand is mentioned in responses</p>
+            <CardContent className="pt-4">
+              <div className="text-xs font-medium text-zinc-300 mb-1">Visibility</div>
+              <p className="text-xs text-zinc-500">How often your brand is mentioned in responses</p>
             </CardContent>
           </Card>
 
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-medium text-zinc-400">Sentiment</CardTitle>
+            <CardHeader className="pb-0">
+              <div className="flex items-start justify-between">
+                <div className="text-2xl font-bold text-amber-400">
+                  {lastScan?.avg_sentiment ?? '-'}%
+                </div>
                 <Smile className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-400">
-                {lastScan?.avg_sentiment ?? '-'}%
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Positive vs negative tone when brand is mentioned</p>
+            <CardContent className="pt-4">
+              <div className="text-xs font-medium text-zinc-300 mb-1">Sentiment</div>
+              <p className="text-xs text-zinc-500">Positive vs negative tone when brand is mentioned</p>
             </CardContent>
           </Card>
 
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-medium text-zinc-400">Citation</CardTitle>
+            <CardHeader className="pb-0">
+              <div className="flex items-start justify-between">
+                <div className="text-2xl font-bold text-purple-400">
+                  {lastScan?.avg_citation ?? '-'}%
+                </div>
                 <Quote className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-400">
-                {lastScan?.avg_citation ?? '-'}%
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Direct references to your brand or domain</p>
+            <CardContent className="pt-4">
+              <div className="text-xs font-medium text-zinc-300 mb-1">Citation</div>
+              <p className="text-xs text-zinc-500">Direct references to your brand or domain</p>
             </CardContent>
           </Card>
 
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-medium text-zinc-400">Ranking</CardTitle>
+            <CardHeader className="pb-0">
+              <div className="flex items-start justify-between">
+                <div className="text-2xl font-bold text-pink-400">
+                  {lastScan?.avg_ranking ?? '-'}%
+                </div>
                 <TrendingUp className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-pink-400">
-                {lastScan?.avg_ranking ?? '-'}%
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Position when AI lists recommendations</p>
+            <CardContent className="pt-4">
+              <div className="text-xs font-medium text-zinc-300 mb-1">Ranking</div>
+              <p className="text-xs text-zinc-500">Position when AI lists recommendations</p>
             </CardContent>
           </Card>
         </div>
