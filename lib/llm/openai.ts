@@ -34,7 +34,7 @@ export async function callOpenAI(
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    max_output_tokens: 1000,
+    max_output_tokens: 1500,
   })
 
   // Extract content - try multiple possible response structures

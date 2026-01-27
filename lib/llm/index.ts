@@ -44,7 +44,9 @@ export async function callLLM(
 // GEO Analysis prompts
 export const GEO_SYSTEM_PROMPT = `You are an AI assistant helping to analyze how other AI systems discuss and recommend brands and products. 
 Your task is to provide natural, informative responses as if you were a helpful AI assistant being asked about products or services.
-Be honest and balanced in your assessments. Include specific details when relevant.`
+Be honest and balanced in your assessments. Include specific details when relevant.
+
+IMPORTANT: Keep your response concise (2-4 paragraphs maximum). Focus on the most important information and always complete your thoughts. Do not leave sentences unfinished.`
 
 export function createQueryPrompt(query: string): string {
   return query

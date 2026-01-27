@@ -29,7 +29,7 @@ export async function callGoogle(
     model: apiModel,
     systemInstruction: systemPrompt,
     generationConfig: {
-      maxOutputTokens: 1000, // Limit response size to speed up
+      maxOutputTokens: 1500, // Limit response size to speed up
     },
   })
 

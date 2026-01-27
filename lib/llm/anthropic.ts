@@ -34,7 +34,7 @@ export async function callAnthropic(
 
   const response = await client.messages.create({
     model: apiModel,
-    max_tokens: 1000, // Limit response size to speed up
+    max_tokens: 1500, // Limit response size to speed up
     system: systemPrompt,
     messages: [
       { role: 'user', content: userPrompt },
