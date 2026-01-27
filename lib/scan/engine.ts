@@ -450,20 +450,25 @@ function analyzeResponse(
   const domainCited = lowerContent.includes(domain.toLowerCase())
   const citationScore = domainCited ? 100 : 0
 
-  // Sentiment Score (0-100): 50 = neutral, 0 = negative, 100 = positive
-  const positiveWords = ['best', 'excellent', 'great', 'recommend', 'top', 'leading', 'popular', 'trusted', 'reliable', 'effective', 'amazing', 'outstanding', 'superior', 'innovative']
-  const negativeWords = ['worst', 'bad', 'avoid', 'poor', 'unreliable', 'expensive', 'limited', 'lacking', 'disappointing', 'inferior', 'problematic']
-  
-  let sentimentRaw = 0
-  for (const word of positiveWords) {
-    if (lowerContent.includes(word)) sentimentRaw += 1
+  // Sentiment Score (0-100): Only calculated when brand is mentioned
+  // 50 = neutral, 0 = negative, 100 = positive
+  // If brand is NOT mentioned, sentiment = 0 (not applicable)
+  let sentimentScore = 0
+  if (brandMentioned) {
+    const positiveWords = ['best', 'excellent', 'great', 'recommend', 'top', 'leading', 'popular', 'trusted', 'reliable', 'effective', 'amazing', 'outstanding', 'superior', 'innovative']
+    const negativeWords = ['worst', 'bad', 'avoid', 'poor', 'unreliable', 'expensive', 'limited', 'lacking', 'disappointing', 'inferior', 'problematic']
+    
+    let sentimentRaw = 0
+    for (const word of positiveWords) {
+      if (lowerContent.includes(word)) sentimentRaw += 1
+    }
+    for (const word of negativeWords) {
+      if (lowerContent.includes(word)) sentimentRaw -= 1
+    }
+    // Convert to 0-100 scale (clamp between -5 and 5, then scale)
+    sentimentRaw = Math.max(-5, Math.min(5, sentimentRaw))
+    sentimentScore = Math.round(50 + (sentimentRaw * 10))
   }
-  for (const word of negativeWords) {
-    if (lowerContent.includes(word)) sentimentRaw -= 1
-  }
-  // Convert to 0-100 scale (clamp between -5 and 5, then scale)
-  sentimentRaw = Math.max(-5, Math.min(5, sentimentRaw))
-  const sentimentScore = Math.round(50 + (sentimentRaw * 10))
 
   // Ranking Score (0-100): Position in list (1st = 100, 2nd = 80, etc.)
   let rankingScore = 0
@@ -566,9 +571,9 @@ function analyzeResponse(
   recommendationScore += rankingScore * 0.2         // 20% weight
   recommendationScore = Math.min(100, Math.max(0, Math.round(recommendationScore + 35))) // Base of 35 if visible
 
-  // If not visible at all, recommendation should be very low
+  // If not visible at all, recommendation should be 0
   if (!brandMentioned) {
-    recommendationScore = Math.round(sentimentScore * 0.2) // Only sentiment matters if not mentioned
+    recommendationScore = 0
   }
 
   return {
@@ -590,18 +595,19 @@ interface AggregatedMetrics {
 
 function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
   if (results.length === 0) {
-    return { overall: 0, visibility: 0, sentiment: 50, citation: 0, ranking: 0 }
+    return { overall: 0, visibility: 0, sentiment: 0, citation: 0, ranking: 0 }
   }
 
   const metricsResults = results.filter(r => r.metrics_json)
   
   if (metricsResults.length === 0) {
-    return { overall: 0, visibility: 0, sentiment: 50, citation: 0, ranking: 0 }
+    return { overall: 0, visibility: 0, sentiment: 0, citation: 0, ranking: 0 }
   }
 
   // Calculate averages
   let totalVisibility = 0
   let totalSentiment = 0
+  let sentimentCount = 0 // Only count sentiment when brand is mentioned
   let totalCitation = 0
   let totalRanking = 0
   let totalRecommendation = 0
@@ -609,17 +615,22 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
   for (const result of metricsResults) {
     const metrics = result.metrics_json as ScanMetrics
     totalVisibility += metrics.visibility_score
-    totalSentiment += metrics.sentiment_score
     totalCitation += metrics.citation_score
     totalRanking += metrics.ranking_score
     totalRecommendation += metrics.recommendation_score
+    
+    // Only include sentiment in average if brand was mentioned (visibility > 0)
+    if (metrics.visibility_score > 0 && metrics.sentiment_score > 0) {
+      totalSentiment += metrics.sentiment_score
+      sentimentCount++
+    }
   }
 
   const count = metricsResults.length
 
   return {
     visibility: Math.round(totalVisibility / count),
-    sentiment: Math.round(totalSentiment / count),
+    sentiment: sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : 0,
     citation: Math.round(totalCitation / count),
     ranking: Math.round(totalRanking / count),
     overall: Math.round(totalRecommendation / count),

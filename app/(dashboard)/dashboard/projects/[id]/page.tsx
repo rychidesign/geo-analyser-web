@@ -308,7 +308,7 @@ export default function ProjectPage() {
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Sentiment</div>
-              <p className="text-xs text-zinc-500">Positive vs negative tone when brand is mentioned</p>
+              <p className="text-xs text-zinc-500">Tone of mentions (only when brand is present)</p>
             </CardContent>
           </Card>
 

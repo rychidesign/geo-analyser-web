@@ -23,9 +23,9 @@ Evaluate the response on these metrics (return scores 0-100):
    - 100 if mentioned, 0 if not mentioned
 
 2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
-   - 0 = very negative
-   - 50 = neutral (just mentioned, no opinion)
-   - 100 = very positive (highly recommended, praised)
+   - IMPORTANT: Only score this if the brand IS mentioned. If brand is NOT mentioned, return 0.
+   - If brand is mentioned: 0 = very negative, 50 = neutral, 100 = very positive
+   - Consider: tone, adjectives used, comparison with competitors
 
 3. **Citation Score** (0-100): Is the domain/URL cited?
    - 100 if domain is mentioned, 0 if not
@@ -39,8 +39,8 @@ Evaluate the response on these metrics (return scores 0-100):
    - 0 = not in a list or not mentioned
 
 5. **Recommendation Score** (0-100): Overall, how strongly is the brand recommended?
-   - Consider: visibility, sentiment, ranking, prominence
-   - This is a weighted overall score
+   - If brand is NOT mentioned, return 0
+   - If brand IS mentioned, consider: visibility, sentiment, ranking, prominence
 
 Return ONLY a JSON object with this exact structure (no explanation):
 {

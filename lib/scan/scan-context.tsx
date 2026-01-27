@@ -53,16 +53,20 @@ function analyzeResponse(response: string, brandVariations: string[], domain: st
   
   const domainMentioned = lowerResponse.includes(domain.toLowerCase())
   
-  const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier', 'popular', 'trusted']
-  const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing', 'unreliable']
-  
-  const positiveCount = positiveWords.filter(word => lowerResponse.includes(word)).length
-  const negativeCount = negativeWords.filter(word => lowerResponse.includes(word)).length
-  
-  // Calculate sentiment (0-100, 50 = neutral)
-  let sentimentScore = 50
-  if (positiveCount > 0) sentimentScore += Math.min(positiveCount * 10, 40)
-  if (negativeCount > 0) sentimentScore -= Math.min(negativeCount * 10, 40)
+  // Only calculate sentiment if brand is mentioned
+  let sentimentScore = 0
+  if (brandMentioned) {
+    const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier', 'popular', 'trusted']
+    const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing', 'unreliable']
+    
+    const positiveCount = positiveWords.filter(word => lowerResponse.includes(word)).length
+    const negativeCount = negativeWords.filter(word => lowerResponse.includes(word)).length
+    
+    // Calculate sentiment (0-100, 50 = neutral)
+    sentimentScore = 50
+    if (positiveCount > 0) sentimentScore += Math.min(positiveCount * 10, 40)
+    if (negativeCount > 0) sentimentScore -= Math.min(negativeCount * 10, 40)
+  }
   
   // Calculate ranking score (position in lists)
   let rankingScore = 0
