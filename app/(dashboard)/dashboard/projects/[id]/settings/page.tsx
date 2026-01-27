@@ -8,7 +8,6 @@ import {
   Loader2,
   Save,
   Trash2,
-  Calendar,
   AlertTriangle,
   Check,
   Cpu,
@@ -29,16 +28,6 @@ const PROVIDERS: { id: LLMProvider; name: string }[] = [
   { id: 'openai', name: 'OpenAI' },
   { id: 'anthropic', name: 'Anthropic' },
   { id: 'google', name: 'Google AI' },
-]
-
-const DAYS = [
-  { value: '0', label: 'Sunday' },
-  { value: '1', label: 'Monday' },
-  { value: '2', label: 'Tuesday' },
-  { value: '3', label: 'Wednesday' },
-  { value: '4', label: 'Thursday' },
-  { value: '5', label: 'Friday' },
-  { value: '6', label: 'Saturday' },
 ]
 
 const LANGUAGES = [
@@ -71,8 +60,6 @@ export default function ProjectSettingsPage() {
   const [keywords, setKeywords] = useState<string[]>([])
   const [newBrand, setNewBrand] = useState('')
   const [newKeyword, setNewKeyword] = useState('')
-  const [scheduledEnabled, setScheduledEnabled] = useState(false)
-  const [scheduledDay, setScheduledDay] = useState('1')
   const [selectedModels, setSelectedModels] = useState<LLMModel[]>(['gpt-5-nano'])
   const [modelsChanged, setModelsChanged] = useState(false)
 
@@ -113,8 +100,6 @@ export default function ProjectSettingsPage() {
         setEvaluationMethod(data.evaluation_method || 'ai')
         setBrandVariations(data.brand_variations || [])
         setKeywords(data.target_keywords || [])
-        setScheduledEnabled(data.scheduled_scan_enabled || false)
-        setScheduledDay(data.scheduled_scan_day?.toString() || '1')
         setSelectedModels((data.llm_models || data.selected_models) || ['gpt-5-nano'])
       }
     } catch (error) {
@@ -169,8 +154,6 @@ export default function ProjectSettingsPage() {
           evaluation_method: evaluationMethod,
           brand_variations: brandVariations,
           target_keywords: keywords,
-          scheduled_scan_enabled: scheduledEnabled,
-          scheduled_scan_day: parseInt(scheduledDay),
           llm_models: selectedModels,
         }),
       })
@@ -239,7 +222,7 @@ export default function ProjectSettingsPage() {
             </Link>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Project Settings</h1>
-              <p className="text-sm text-muted-foreground">Configure project details and scheduled scans.</p>
+              <p className="text-sm text-muted-foreground">Configure project details and AI models.</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -392,49 +375,6 @@ export default function ProjectSettingsPage() {
                   AI uses LLM for better sentiment analysis. Regex is faster and free but simpler.
                 </p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Separator />
-
-          {/* Scheduled Scan */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                <CardTitle>Scheduled Scan</CardTitle>
-              </div>
-              <CardDescription>Automatically run scans on a weekly schedule</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <input
-                  type="checkbox"
-                  id="scheduled"
-                  checked={scheduledEnabled}
-                  onChange={(e) => setScheduledEnabled(e.target.checked)}
-                  className="w-4 h-4 rounded border-border"
-                />
-                <Label htmlFor="scheduled" className="cursor-pointer">Enable weekly scheduled scan</Label>
-              </div>
-
-              {scheduledEnabled && (
-                <div className="space-y-2">
-                  <Label htmlFor="day">Day of Week</Label>
-                  <Select value={scheduledDay} onValueChange={setScheduledDay}>
-                    <SelectTrigger id="day">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DAYS.map((day) => (
-                        <SelectItem key={day.value} value={day.value}>
-                          {day.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
             </CardContent>
           </Card>
 
