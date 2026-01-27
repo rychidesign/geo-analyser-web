@@ -22,8 +22,8 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      query_generation_model: data?.model || 'gpt-5-nano',
-      evaluation_model: data?.encrypted_api_key || 'gpt-5-nano', // repurposing field
+      query_generation_model: data?.model || 'gpt-5-mini',
+      evaluation_model: data?.encrypted_api_key || 'gpt-5-mini', // repurposing field
     })
   } catch (error: any) {
     console.error('Error fetching helper settings:', error)
@@ -52,8 +52,8 @@ export async function POST(request: NextRequest) {
       .upsert({
         user_id: user.id,
         provider: '_helpers',
-        model: query_generation_model || 'gpt-5-nano',
-        encrypted_api_key: evaluation_model || 'gpt-5-nano', // repurposing field
+        model: query_generation_model || 'gpt-5-mini',
+        encrypted_api_key: evaluation_model || 'gpt-5-mini', // repurposing field
         is_active: true,
       }, { 
         onConflict: 'user_id,provider',

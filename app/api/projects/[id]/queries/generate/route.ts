@@ -81,7 +81,7 @@ export async function POST(
       .eq('provider', '_helpers')
       .single()
 
-    const queryGenerationModel = (helperSettings?.model || 'gpt-5-nano') as LLMModel
+    const queryGenerationModel = (helperSettings?.model || 'gpt-5-mini') as LLMModel
     
     // Determine provider from model name
     const getProviderFromModel = (model: string): LLMProvider => {

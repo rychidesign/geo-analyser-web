@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         .eq('provider', '_helpers')
         .single()
       
-      modelToUse = helperSettings?.encrypted_api_key || 'gpt-5-nano' // Default to cheapest
+      modelToUse = helperSettings?.encrypted_api_key || 'gpt-5-mini' // Default to cheapest available
     }
 
     const provider = getProviderFromModel(modelToUse)

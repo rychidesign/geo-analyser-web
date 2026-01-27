@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     let status = 500
     
     if (error.message?.includes('timeout') || error.message?.includes('Timeout') || error.message?.includes('timed out')) {
-      errorMessage = 'Request timed out. The model took too long to respond. Try a faster model like gpt-5-nano or claude-haiku.'
+      errorMessage = 'Request timed out. The model took too long to respond. Try a faster model like gpt-5-mini or claude-haiku.'
       status = 504
     } else if (error.message?.includes('model') || error.message?.includes('Model')) {
       errorMessage = `Invalid model or model not available: ${error.message}`

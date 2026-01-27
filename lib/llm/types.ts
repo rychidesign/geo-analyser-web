@@ -5,16 +5,13 @@ export type LLMProvider = 'openai' | 'anthropic' | 'google'
 export type LLMModel = 
   // OpenAI
   | 'gpt-5-2'
-  | 'gpt-5'
   | 'gpt-5-mini'
-  | 'gpt-5-nano'
   // Anthropic  
   | 'claude-sonnet-4-5'
   | 'claude-opus-4-5'
   | 'claude-haiku-4-5'
   | 'claude-opus-4-1'
   // Google
-  | 'gemini-3-pro-preview'
   | 'gemini-3-flash-preview'
   | 'gemini-2-5-flash'
   | 'gemini-2-5-flash-lite'
@@ -38,25 +35,11 @@ export const AVAILABLE_MODELS: ModelInfo[] = [
     pricing: { input: 1.75, output: 14.00 },
   },
   {
-    id: 'gpt-5',
-    name: 'GPT-5',
-    provider: 'openai',
-    description: 'Powerful general-purpose model',
-    pricing: { input: 1.25, output: 10.00 },
-  },
-  {
     id: 'gpt-5-mini',
     name: 'GPT-5 Mini',
     provider: 'openai',
     description: 'Balanced performance and cost',
     pricing: { input: 0.25, output: 2.00 },
-  },
-  {
-    id: 'gpt-5-nano',
-    name: 'GPT-5 Nano',
-    provider: 'openai',
-    description: 'Fast and affordable',
-    pricing: { input: 0.05, output: 0.40 },
   },
   
   // Anthropic
@@ -90,13 +73,6 @@ export const AVAILABLE_MODELS: ModelInfo[] = [
   },
   
   // Google
-  {
-    id: 'gemini-3-pro-preview',
-    name: 'Gemini 3 Pro Preview',
-    provider: 'google',
-    description: 'Best model in the world for multimodal understanding',
-    pricing: { input: 2.00, output: 12.00 },  // <= 200k tokens
-  },
   {
     id: 'gemini-3-flash-preview',
     name: 'Gemini 3 Flash Preview',
@@ -173,9 +149,9 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
   return inputCost + outputCost
 }
 
-// Default models for each provider (cheapest)
+// Default models for each provider (cheapest available)
 export const DEFAULT_MODELS: Record<LLMProvider, LLMModel> = {
-  openai: 'gpt-5-nano',
+  openai: 'gpt-5-mini',
   anthropic: 'claude-haiku-4-5',
   google: 'gemini-2-5-flash-lite',
 }

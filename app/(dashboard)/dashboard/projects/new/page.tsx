@@ -44,7 +44,7 @@ export default function NewProjectPage() {
   const [keywords, setKeywords] = useState<string[]>([])
   const [newBrand, setNewBrand] = useState('')
   const [newKeyword, setNewKeyword] = useState('')
-  const [selectedModels, setSelectedModels] = useState<LLMModel[]>(['gpt-5-nano'])
+  const [selectedModels, setSelectedModels] = useState<LLMModel[]>(['gpt-5-mini'])
 
   useEffect(() => {
     checkProviders()

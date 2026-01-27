@@ -19,14 +19,13 @@ interface ApiKeyConfig {
 }
 
 const ALL_MODELS = [
-  { value: 'gpt-5-nano', label: 'GPT-5 Nano (cheapest)', provider: 'openai' },
-  { value: 'gpt-5-mini', label: 'GPT-5 Mini', provider: 'openai' },
-  { value: 'gpt-5', label: 'GPT-5', provider: 'openai' },
-  { value: 'claude-haiku-4.5', label: 'Claude Haiku 4.5 (cheapest)', provider: 'anthropic' },
-  { value: 'claude-sonnet-4.5', label: 'Claude Sonnet 4.5', provider: 'anthropic' },
-  { value: 'claude-opus-4.5', label: 'Claude Opus 4.5', provider: 'anthropic' },
-  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (cheapest)', provider: 'google' },
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google' },
+  { value: 'gpt-5-mini', label: 'GPT-5 Mini (cheapest)', provider: 'openai' },
+  { value: 'gpt-5-2', label: 'GPT-5.2', provider: 'openai' },
+  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (cheapest)', provider: 'anthropic' },
+  { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'anthropic' },
+  { value: 'claude-opus-4-5', label: 'Claude Opus 4.5', provider: 'anthropic' },
+  { value: 'gemini-2-5-flash-lite', label: 'Gemini 2.5 Flash Lite (cheapest)', provider: 'google' },
+  { value: 'gemini-2-5-flash', label: 'Gemini 2.5 Flash', provider: 'google' },
   { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash Preview', provider: 'google' },
 ]
 
@@ -55,8 +54,8 @@ export default function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false)
   const [loading, setLoading] = useState(true)
   const [timezone, setTimezone] = useState('Europe/Prague')
-  const [queryGenerationModel, setQueryGenerationModel] = useState('gpt-5-nano')
-  const [evaluationModel, setEvaluationModel] = useState('gpt-5-nano')
+  const [queryGenerationModel, setQueryGenerationModel] = useState('gpt-5-mini')
+  const [evaluationModel, setEvaluationModel] = useState('gpt-5-mini')
 
   useEffect(() => {
     loadSettings()
@@ -83,8 +82,8 @@ export default function SettingsPage() {
       const helperRes = await fetch('/api/settings/helpers')
       if (helperRes.ok) {
         const helperSettings = await helperRes.json()
-        setQueryGenerationModel(helperSettings.query_generation_model || 'gpt-5-nano')
-        setEvaluationModel(helperSettings.evaluation_model || 'gpt-5-nano')
+        setQueryGenerationModel(helperSettings.query_generation_model || 'gpt-5-mini')
+        setEvaluationModel(helperSettings.evaluation_model || 'gpt-5-mini')
       }
 
       // Load profile settings (timezone)

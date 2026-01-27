@@ -3,12 +3,10 @@ import type { LLMConfig, LLMResponse } from './types'
 
 // Map our model IDs to actual Google AI API model names
 const MODEL_MAP: Record<string, string> = {
-  'gemini-3-pro-preview': 'gemini-3-pro-preview',       // Gemini 3 Pro Preview
   'gemini-3-flash-preview': 'gemini-3-flash-preview',   // Gemini 3 Flash Preview
   'gemini-2-5-flash': 'gemini-2.5-flash',               // Gemini 2.5 Flash
   'gemini-2-5-flash-lite': 'gemini-2.5-flash-lite',     // Gemini 2.5 Flash Lite
   // Support legacy names with dots (from old DB entries)
-  'gemini-3.pro.preview': 'gemini-3-pro-preview',
   'gemini-3.flash.preview': 'gemini-3-flash-preview',
   'gemini-2.5.flash': 'gemini-2.5-flash',
   'gemini-2.5.flash.lite': 'gemini-2.5-flash-lite',

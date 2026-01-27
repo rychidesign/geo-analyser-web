@@ -4,13 +4,10 @@ import type { LLMConfig, LLMResponse, LLMModel } from './types'
 // Map our model IDs to actual OpenAI API model names
 const MODEL_MAP: Record<string, string> = {
   'gpt-5-2': 'gpt-5.2',           // GPT-5.2 (latest)
-  'gpt-5': 'gpt-5',               // GPT-5
   'gpt-5-mini': 'gpt-5-mini',     // GPT-5 Mini
-  'gpt-5-nano': 'gpt-5-nano',     // GPT-5 Nano
   // Support legacy names with dots (from old DB entries)
   'gpt-5.2': 'gpt-5.2',
   'gpt-5.mini': 'gpt-5-mini',
-  'gpt-5.nano': 'gpt-5-nano',
 }
 
 // Timeout for API calls (Vercel Hobby has 25s limit for Edge)

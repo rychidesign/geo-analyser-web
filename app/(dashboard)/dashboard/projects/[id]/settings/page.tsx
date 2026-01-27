@@ -60,7 +60,7 @@ export default function ProjectSettingsPage() {
   const [keywords, setKeywords] = useState<string[]>([])
   const [newBrand, setNewBrand] = useState('')
   const [newKeyword, setNewKeyword] = useState('')
-  const [selectedModels, setSelectedModels] = useState<LLMModel[]>(['gpt-5-nano'])
+  const [selectedModels, setSelectedModels] = useState<LLMModel[]>(['gpt-5-mini'])
   const [modelsChanged, setModelsChanged] = useState(false)
 
   useEffect(() => {
@@ -100,7 +100,7 @@ export default function ProjectSettingsPage() {
         setEvaluationMethod(data.evaluation_method || 'ai')
         setBrandVariations(data.brand_variations || [])
         setKeywords(data.target_keywords || [])
-        setSelectedModels(data.selected_models || ['gpt-5-nano'])
+        setSelectedModels(data.selected_models || ['gpt-5-mini'])
       }
     } catch (error) {
       console.error('Error loading project:', error)
