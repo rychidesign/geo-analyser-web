@@ -65,17 +65,16 @@ const styles: Record<ToastType, { bg: string; border: string; icon: string; text
   },
 }
 
-function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
+function ToastItem({ toast, onClose, isClosing }: { toast: Toast; onClose: () => void; isClosing: boolean }) {
   const Icon = icons[toast.type]
   const style = styles[toast.type]
 
   return (
     <div
       className={`
-        flex items-center gap-3 px-4 py-3 rounded-lg border backdrop-blur-sm
+        flex items-center gap-3 px-4 py-3 rounded-lg border backdrop-blur-sm shadow-lg
         ${style.bg} ${style.border}
-        animate-in slide-in-from-bottom-5 fade-in duration-300
-        data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom-5 data-[state=closed]:fade-out
+        ${isClosing ? 'animate-slide-out-bottom' : 'animate-slide-in-bottom'}
       `}
     >
       <Icon className={`w-5 h-5 flex-shrink-0 ${style.icon}`} />
@@ -126,15 +125,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {/* Toast container - centered at bottom */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-md px-4">
         {toasts.map(toast => (
-          <div
+          <ToastItem 
             key={toast.id}
-            data-state={closingIds.has(toast.id) ? 'closed' : 'open'}
-          >
-            <ToastItem 
-              toast={toast} 
-              onClose={() => removeToast(toast.id)} 
-            />
-          </div>
+            toast={toast} 
+            onClose={() => removeToast(toast.id)}
+            isClosing={closingIds.has(toast.id)}
+          />
         ))}
       </div>
     </ToastContext.Provider>
