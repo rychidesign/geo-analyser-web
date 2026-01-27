@@ -35,14 +35,14 @@ export async function GET(
       return NextResponse.json({ error: 'Scan not found' }, { status: 404 })
     }
 
-    // Get project to calculate total expected results (with backward compatibility)
+    // Get project to calculate total expected results
     const { data: project } = await supabase
       .from(TABLES.PROJECTS)
-      .select('llm_models, selected_models')
+      .select('selected_models')
       .eq('id', projectId)
       .single()
 
-    const selectedModels = ((project?.llm_models || (project as any)?.selected_models) || []) as string[]
+    const selectedModels = (project?.selected_models || []) as string[]
     const totalExpected = scan.total_queries * selectedModels.length
     const completed = scan.total_results || 0
 
