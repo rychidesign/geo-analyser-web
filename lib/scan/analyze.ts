@@ -19,15 +19,10 @@ export function analyzeResponseRegex(
   // Check if domain is mentioned
   const domainMentioned = lowerResponse.includes(domain.toLowerCase())
   
-  // Combined visibility score: brand + domain presence
+  // Combined visibility score: brand (50) + domain (50) = 100
   let visibilityScore = 0
-  if (brandMentioned && domainMentioned) {
-    visibilityScore = 100
-  } else if (brandMentioned) {
-    visibilityScore = 70
-  } else if (domainMentioned) {
-    visibilityScore = 30
-  }
+  if (brandMentioned) visibilityScore += 50
+  if (domainMentioned) visibilityScore += 50
   
   // Simple sentiment analysis (only if brand is mentioned)
   let sentimentScore = 0

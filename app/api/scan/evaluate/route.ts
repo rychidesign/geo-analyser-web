@@ -20,10 +20,9 @@ AI Response to analyze:
 Evaluate the response on these metrics (return scores 0-100):
 
 1. **Visibility Score** (0-100): Combined brand + domain presence
-   - 100 = both brand AND domain are mentioned
-   - 70 = only brand is mentioned
-   - 30 = only domain is mentioned
-   - 0 = neither brand nor domain is mentioned
+   - Brand mentioned = 50 points
+   - Domain mentioned = 50 points
+   - Both = 100, one = 50, neither = 0
 
 2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
    - IMPORTANT: Only score this if the brand IS mentioned. If brand is NOT mentioned, return 0.

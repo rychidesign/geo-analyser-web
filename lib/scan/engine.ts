@@ -342,10 +342,9 @@ ${content}
 Evaluate the response on these metrics (return scores 0-100):
 
 1. **Visibility Score** (0-100): Combined brand + domain presence
-   - 100 = both brand AND domain are mentioned
-   - 70 = only brand is mentioned
-   - 30 = only domain is mentioned
-   - 0 = neither brand nor domain is mentioned
+   - Brand mentioned = 50 points
+   - Domain mentioned = 50 points
+   - Both = 100, one = 50, neither = 0
 
 2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
    - ONLY score if brand IS mentioned. If brand NOT mentioned, return 0.
@@ -442,16 +441,10 @@ function analyzeResponse(
   )
   const domainMentioned = lowerContent.includes(domain.toLowerCase())
 
-  // Combined Visibility Score: brand + domain presence
-  // 100 = both mentioned, 70 = brand only, 30 = domain only, 0 = neither
+  // Combined Visibility Score: brand (50) + domain (50) = 100
   let visibilityScore = 0
-  if (brandMentioned && domainMentioned) {
-    visibilityScore = 100
-  } else if (brandMentioned) {
-    visibilityScore = 70
-  } else if (domainMentioned) {
-    visibilityScore = 30
-  }
+  if (brandMentioned) visibilityScore += 50
+  if (domainMentioned) visibilityScore += 50
 
   // Sentiment Score (0-100): Only calculated when brand is mentioned
   // 50 = neutral, 0 = negative, 100 = positive

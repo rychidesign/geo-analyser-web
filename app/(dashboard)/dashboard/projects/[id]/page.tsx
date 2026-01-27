@@ -292,7 +292,7 @@ export default function ProjectPage() {
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Visibility</div>
-              <p className="text-xs text-zinc-500">Brand + domain presence (100=both, 70=brand, 30=domain)</p>
+              <p className="text-xs text-zinc-500">Brand presence (50) + domain presence (50) = 100</p>
             </CardContent>
           </Card>
 
