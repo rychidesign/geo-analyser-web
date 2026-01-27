@@ -347,8 +347,10 @@ Evaluate the response on these metrics (return scores 0-100):
    - Both = 100, one = 50, neither = 0
 
 2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
-   - ONLY score if brand IS mentioned. If brand NOT mentioned, return 0.
+   - ONLY analyze sentences/context where brand or domain is mentioned
+   - If brand NOT mentioned at all, return 0.
    - 0 = very negative, 50 = neutral, 100 = very positive
+   - Ignore sentiment in parts of the response that don't mention the brand
 
 3. **Ranking Score** (0-100): If mentioned in a list, what position?
    - 100 = first/top position
@@ -427,6 +429,24 @@ Return ONLY a JSON object with this exact structure (no explanation):
   }
 }
 
+// Helper: Extract sentences containing brand/domain mentions for context-aware sentiment
+function extractBrandContext(content: string, brandVariations: string[], domain: string): string {
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0)
+  const relevantSentences: string[] = []
+  
+  for (const sentence of sentences) {
+    const lowerSentence = sentence.toLowerCase()
+    const hasBrand = brandVariations.some(brand => lowerSentence.includes(brand.toLowerCase()))
+    const hasDomain = lowerSentence.includes(domain.toLowerCase())
+    
+    if (hasBrand || hasDomain) {
+      relevantSentences.push(sentence)
+    }
+  }
+  
+  return relevantSentences.join(' ').toLowerCase()
+}
+
 // Regex-based evaluation (fast & free)
 function analyzeResponse(
   content: string,
@@ -446,20 +466,22 @@ function analyzeResponse(
   if (brandMentioned) visibilityScore += 50
   if (domainMentioned) visibilityScore += 50
 
-  // Sentiment Score (0-100): Only calculated when brand is mentioned
+  // Sentiment Score (0-100): Only calculated from context around brand/domain mentions
   // 50 = neutral, 0 = negative, 100 = positive
-  // If brand is NOT mentioned, sentiment = 0 (not applicable)
   let sentimentScore = 0
-  if (brandMentioned) {
+  if (brandMentioned || domainMentioned) {
+    // Extract only sentences that mention the brand or domain
+    const brandContext = extractBrandContext(content, brandVariations, domain)
+    
     const positiveWords = ['best', 'excellent', 'great', 'recommend', 'top', 'leading', 'popular', 'trusted', 'reliable', 'effective', 'amazing', 'outstanding', 'superior', 'innovative']
     const negativeWords = ['worst', 'bad', 'avoid', 'poor', 'unreliable', 'expensive', 'limited', 'lacking', 'disappointing', 'inferior', 'problematic']
     
     let sentimentRaw = 0
     for (const word of positiveWords) {
-      if (lowerContent.includes(word)) sentimentRaw += 1
+      if (brandContext.includes(word)) sentimentRaw += 1
     }
     for (const word of negativeWords) {
-      if (lowerContent.includes(word)) sentimentRaw -= 1
+      if (brandContext.includes(word)) sentimentRaw -= 1
     }
     // Convert to 0-100 scale (clamp between -5 and 5, then scale)
     sentimentRaw = Math.max(-5, Math.min(5, sentimentRaw))

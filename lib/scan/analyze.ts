@@ -1,6 +1,26 @@
 import type { ScanMetrics } from '@/lib/db/schema'
 
 /**
+ * Extract sentences containing brand/domain mentions for context-aware sentiment
+ */
+function extractBrandContext(response: string, brandVariations: string[], domain: string): string {
+  const sentences = response.split(/[.!?]+/).filter(s => s.trim().length > 0)
+  const relevantSentences: string[] = []
+  
+  for (const sentence of sentences) {
+    const lowerSentence = sentence.toLowerCase()
+    const hasBrand = brandVariations.some(brand => lowerSentence.includes(brand.toLowerCase()))
+    const hasDomain = lowerSentence.includes(domain.toLowerCase())
+    
+    if (hasBrand || hasDomain) {
+      relevantSentences.push(sentence)
+    }
+  }
+  
+  return relevantSentences.join(' ').toLowerCase()
+}
+
+/**
  * Analyze LLM response using regex patterns
  * Used for simple evaluation without AI
  */
@@ -24,21 +44,24 @@ export function analyzeResponseRegex(
   if (brandMentioned) visibilityScore += 50
   if (domainMentioned) visibilityScore += 50
   
-  // Simple sentiment analysis (only if brand is mentioned)
+  // Sentiment analysis only from context around brand/domain mentions
   let sentimentScore = 0
   let rankingScore = 0
   let recommendationScore = 0
   
-  if (brandMentioned) {
-    const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier']
-    const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing']
+  if (brandMentioned || domainMentioned) {
+    // Extract only sentences that mention the brand or domain
+    const brandContext = extractBrandContext(response, brandVariations, domain)
     
-    const positiveCount = positiveWords.filter(word => lowerResponse.includes(word)).length
-    const negativeCount = negativeWords.filter(word => lowerResponse.includes(word)).length
+    const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier', 'quality', 'reliable', 'trusted', 'popular']
+    const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing', 'unreliable', 'expensive', 'lacking']
     
-    sentimentScore = positiveCount > 0 ? 
-      (negativeCount > 0 ? 50 : 75) : 
-      (negativeCount > 0 ? 25 : 50)
+    const positiveCount = positiveWords.filter(word => brandContext.includes(word)).length
+    const negativeCount = negativeWords.filter(word => brandContext.includes(word)).length
+    
+    sentimentScore = 50
+    if (positiveCount > 0) sentimentScore += Math.min(positiveCount * 10, 40)
+    if (negativeCount > 0) sentimentScore -= Math.min(negativeCount * 10, 40)
     
     rankingScore = positiveCount > 0 ? 90 : 50
     

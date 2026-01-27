@@ -43,6 +43,24 @@ export function useScan() {
   return context
 }
 
+// Helper: Extract sentences containing brand/domain mentions
+function extractBrandContext(response: string, brandVariations: string[], domain: string): string {
+  const sentences = response.split(/[.!?]+/).filter(s => s.trim().length > 0)
+  const relevantSentences: string[] = []
+  
+  for (const sentence of sentences) {
+    const lowerSentence = sentence.toLowerCase()
+    const hasBrand = brandVariations.some(brand => lowerSentence.includes(brand.toLowerCase()))
+    const hasDomain = lowerSentence.includes(domain.toLowerCase())
+    
+    if (hasBrand || hasDomain) {
+      relevantSentences.push(sentence)
+    }
+  }
+  
+  return relevantSentences.join(' ').toLowerCase()
+}
+
 // Helper: Analyze response using regex (same as before, but inline)
 function analyzeResponse(response: string, brandVariations: string[], domain: string) {
   const lowerResponse = response.toLowerCase()
@@ -58,14 +76,17 @@ function analyzeResponse(response: string, brandVariations: string[], domain: st
   if (brandMentioned) visibilityScore += 50
   if (domainMentioned) visibilityScore += 50
   
-  // Only calculate sentiment if brand is mentioned
+  // Only calculate sentiment from context around brand/domain mentions
   let sentimentScore = 0
-  if (brandMentioned) {
-    const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier', 'popular', 'trusted']
-    const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing', 'unreliable']
+  if (brandMentioned || domainMentioned) {
+    // Extract only sentences that mention the brand or domain
+    const brandContext = extractBrandContext(response, brandVariations, domain)
     
-    const positiveCount = positiveWords.filter(word => lowerResponse.includes(word)).length
-    const negativeCount = negativeWords.filter(word => lowerResponse.includes(word)).length
+    const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier', 'popular', 'trusted', 'quality', 'reliable', 'amazing', 'outstanding']
+    const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing', 'unreliable', 'expensive', 'lacking', 'limited', 'inferior']
+    
+    const positiveCount = positiveWords.filter(word => brandContext.includes(word)).length
+    const negativeCount = negativeWords.filter(word => brandContext.includes(word)).length
     
     // Calculate sentiment (0-100, 50 = neutral)
     sentimentScore = 50

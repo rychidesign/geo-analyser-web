@@ -25,8 +25,10 @@ Evaluate the response on these metrics (return scores 0-100):
    - Both = 100, one = 50, neither = 0
 
 2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
-   - IMPORTANT: Only score this if the brand IS mentioned. If brand is NOT mentioned, return 0.
+   - IMPORTANT: Only analyze sentences/context where brand or domain is mentioned
+   - If brand is NOT mentioned at all, return 0.
    - If brand is mentioned: 0 = very negative, 50 = neutral, 100 = very positive
+   - Ignore sentiment in other parts of the response that don't mention the brand
 
 3. **Ranking Score** (0-100): If mentioned in a list, what position?
    - 100 = first/top position
