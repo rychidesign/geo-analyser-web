@@ -278,7 +278,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-emerald-400">
                 {lastScan?.overall_score ?? '-'}%
               </div>
-              <p className="text-[10px] text-zinc-500 mt-1">Combined brand presence</p>
+              <p className="text-xs text-zinc-500 mt-2">Weighted average of all metrics combined</p>
             </CardContent>
           </Card>
 
@@ -293,7 +293,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-blue-400">
                 {lastScan?.avg_visibility ?? '-'}%
               </div>
-              <p className="text-[10px] text-zinc-500 mt-1">How often brand appears</p>
+              <p className="text-xs text-zinc-500 mt-2">How often your brand is mentioned in responses</p>
             </CardContent>
           </Card>
 
@@ -308,7 +308,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-amber-400">
                 {lastScan?.avg_sentiment ?? '-'}%
               </div>
-              <p className="text-[10px] text-zinc-500 mt-1">Tone of brand mentions</p>
+              <p className="text-xs text-zinc-500 mt-2">Positive vs negative tone when brand is mentioned</p>
             </CardContent>
           </Card>
 
@@ -323,7 +323,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-purple-400">
                 {lastScan?.avg_citation ?? '-'}%
               </div>
-              <p className="text-[10px] text-zinc-500 mt-1">Direct brand references</p>
+              <p className="text-xs text-zinc-500 mt-2">Direct references to your brand or domain</p>
             </CardContent>
           </Card>
 
@@ -338,7 +338,7 @@ export default function ProjectPage() {
               <div className="text-2xl font-bold text-pink-400">
                 {lastScan?.avg_ranking ?? '-'}%
               </div>
-              <p className="text-[10px] text-zinc-500 mt-1">Position in recommendations</p>
+              <p className="text-xs text-zinc-500 mt-2">Position when AI lists recommendations</p>
             </CardContent>
           </Card>
         </div>
