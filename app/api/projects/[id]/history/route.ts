@@ -33,7 +33,7 @@ export async function GET(
     // Get all completed scans for this project within date range
     const { data: scans, error } = await supabase
       .from(TABLES.SCANS)
-      .select('id, created_at, overall_score, avg_visibility, avg_sentiment, avg_citation, avg_ranking')
+      .select('id, created_at, overall_score, avg_visibility, avg_sentiment, avg_ranking')
       .eq('project_id', projectId)
       .eq('user_id', user.id)
       .eq('status', 'completed')
@@ -52,7 +52,6 @@ export async function GET(
       overall: number
       visibility: number
       sentiment: number
-      citation: number
       ranking: number
     }> = {}
 
@@ -82,7 +81,6 @@ export async function GET(
           overall: 0,
           visibility: 0,
           sentiment: 0,
-          citation: 0,
           ranking: 0,
         }
       }
@@ -90,8 +88,7 @@ export async function GET(
       dailyData[dateKey].scans += 1
       dailyData[dateKey].overall += scan.overall_score || 0
       dailyData[dateKey].visibility += scan.avg_visibility || 0
-      dailyData[dateKey].sentiment += scan.avg_sentiment || 50
-      dailyData[dateKey].citation += scan.avg_citation || 0
+      dailyData[dateKey].sentiment += scan.avg_sentiment || 0
       dailyData[dateKey].ranking += scan.avg_ranking || 0
     }
 
@@ -105,7 +102,6 @@ export async function GET(
         overall: Math.round(day.overall / day.scans),
         visibility: Math.round(day.visibility / day.scans),
         sentiment: Math.round(day.sentiment / day.scans),
-        citation: Math.round(day.citation / day.scans),
         ranking: Math.round(day.ranking / day.scans),
       }))
       .sort((a, b) => a.date.localeCompare(b.date)) // Sort by date ascending

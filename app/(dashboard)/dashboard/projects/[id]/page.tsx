@@ -150,6 +150,19 @@ export default function ProjectPage() {
   const completedScans = scans.filter(scan => scan.status === 'completed')
   const lastScan = completedScans[0]
 
+  // Calculate averages across ALL completed scans
+  const avgMetrics = completedScans.length > 0 ? {
+    overall: Math.round(completedScans.reduce((sum, s) => sum + (s.overall_score || 0), 0) / completedScans.length),
+    visibility: Math.round(completedScans.reduce((sum, s) => sum + (s.avg_visibility || 0), 0) / completedScans.length),
+    sentiment: (() => {
+      // Only average sentiment from scans where brand was mentioned (visibility > 0)
+      const scansWithBrand = completedScans.filter(s => (s.avg_visibility || 0) > 0)
+      if (scansWithBrand.length === 0) return 0
+      return Math.round(scansWithBrand.reduce((sum, s) => sum + (s.avg_sentiment || 0), 0) / scansWithBrand.length)
+    })(),
+    ranking: Math.round(completedScans.reduce((sum, s) => sum + (s.avg_ranking || 0), 0) / completedScans.length),
+  } : null
+
   return (
     <>
       {/* Header */}
@@ -264,20 +277,20 @@ export default function ProjectPage() {
           </Card>
         )}
 
-        {/* Stats */}
+        {/* Stats - Averages across ALL completed scans */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
             <CardHeader className="pb-0">
               <div className="flex items-start justify-between">
                 <div className="text-2xl font-bold text-emerald-400">
-                  {lastScan?.overall_score ?? '-'}%
+                  {avgMetrics?.overall ?? '-'}%
                 </div>
                 <Target className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Overall Score</div>
-              <p className="text-xs text-zinc-500">Weighted average of all metrics combined</p>
+              <p className="text-xs text-zinc-500">Average across {completedScans.length} scan{completedScans.length !== 1 ? 's' : ''}</p>
             </CardContent>
           </Card>
 
@@ -285,14 +298,14 @@ export default function ProjectPage() {
             <CardHeader className="pb-0">
               <div className="flex items-start justify-between">
                 <div className="text-2xl font-bold text-blue-400">
-                  {lastScan?.avg_visibility ?? '-'}%
+                  {avgMetrics?.visibility ?? '-'}%
                 </div>
                 <Eye className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Visibility</div>
-              <p className="text-xs text-zinc-500">Brand presence (50) + domain presence (50) = 100</p>
+              <p className="text-xs text-zinc-500">Brand (50) + domain (50) = 100</p>
             </CardContent>
           </Card>
 
@@ -300,14 +313,14 @@ export default function ProjectPage() {
             <CardHeader className="pb-0">
               <div className="flex items-start justify-between">
                 <div className="text-2xl font-bold text-amber-400">
-                  {lastScan?.avg_sentiment ?? '-'}%
+                  {avgMetrics?.sentiment ?? '-'}%
                 </div>
                 <Smile className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Sentiment</div>
-              <p className="text-xs text-zinc-500">Tone of mentions (only when brand is present)</p>
+              <p className="text-xs text-zinc-500">Only counted when brand is mentioned</p>
             </CardContent>
           </Card>
 
@@ -315,7 +328,7 @@ export default function ProjectPage() {
             <CardHeader className="pb-0">
               <div className="flex items-start justify-between">
                 <div className="text-2xl font-bold text-pink-400">
-                  {lastScan?.avg_ranking ?? '-'}%
+                  {avgMetrics?.ranking ?? '-'}%
                 </div>
                 <TrendingUp className="w-4 h-4 text-zinc-400" />
               </div>

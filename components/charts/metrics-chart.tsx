@@ -18,7 +18,6 @@ interface HistoryData {
   overall: number
   visibility: number
   sentiment: number
-  citation: number
   ranking: number
 }
 
@@ -31,7 +30,6 @@ const METRIC_COLORS = {
   overall: '#10b981',      // Emerald-500
   visibility: '#3b82f6',   // Blue-500
   sentiment: '#f59e0b',    // Amber-500
-  citation: '#a855f7',     // Purple-500
   ranking: '#ec4899',      // Pink-500
 }
 
@@ -39,7 +37,6 @@ const METRIC_LABELS = {
   overall: 'Overall Score',
   visibility: 'Visibility',
   sentiment: 'Sentiment',
-  citation: 'Citation',
   ranking: 'Ranking',
 }
 
@@ -51,7 +48,6 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
     overall: true,
     visibility: true,
     sentiment: true,
-    citation: true,
     ranking: true,
   })
 
@@ -211,16 +207,6 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
                 type="monotone"
                 dataKey="sentiment"
                 stroke={METRIC_COLORS.sentiment}
-                strokeWidth={1.5}
-                dot={false}
-                activeDot={{ r: 3, strokeWidth: 0 }}
-              />
-            )}
-            {visibleMetrics.citation && (
-              <Line
-                type="monotone"
-                dataKey="citation"
-                stroke={METRIC_COLORS.citation}
                 strokeWidth={1.5}
                 dot={false}
                 activeDot={{ r: 3, strokeWidth: 0 }}
