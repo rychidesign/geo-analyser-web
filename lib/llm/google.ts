@@ -44,7 +44,29 @@ export async function callGoogle(
     clearTimeout(timeoutId)
     
     const response = result.response
-    const content = response.text()
+    
+    // Try to extract text content
+    let content = ''
+    try {
+      content = response.text()
+    } catch (textError) {
+      // Some responses might have blocked content or different structure
+      console.warn(`[Google] Could not extract text from ${apiModel}:`, textError)
+      
+      // Try alternative extraction
+      if (response.candidates && response.candidates[0]?.content?.parts) {
+        content = response.candidates[0].content.parts
+          .map((part: any) => part.text || '')
+          .join('')
+      }
+    }
+
+    // Log for debugging if content is empty
+    if (!content) {
+      console.warn(`[Google] Empty response from ${apiModel}. Finish reason:`, 
+        response.candidates?.[0]?.finishReason,
+        'Safety ratings:', response.candidates?.[0]?.safetyRatings)
+    }
 
     // Google returns usage metadata
     const usageMetadata = response.usageMetadata
@@ -53,7 +75,7 @@ export async function callGoogle(
       content,
       inputTokens: usageMetadata?.promptTokenCount || 0,
       outputTokens: usageMetadata?.candidatesTokenCount || 0,
-      model: config.model, // Return our model ID for consistency
+      model: config.model,
     }
   } catch (error: any) {
     clearTimeout(timeoutId)

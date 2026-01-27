@@ -31,22 +31,40 @@ export async function callOpenAI(
   const apiModel = MODEL_MAP[config.model] || config.model
 
   // GPT-5 models use the Responses API with different parameters
-  // Use responses.create for GPT-5 series
   const response = await client.responses.create({
     model: apiModel,
     input: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    max_output_tokens: 1000, // GPT-5 uses max_output_tokens
+    max_output_tokens: 1000,
   })
 
-  const content = response.output_text || ''
+  // Extract content - try multiple possible response structures
+  let content = ''
+  if (response.output_text) {
+    content = response.output_text
+  } else if (response.output && Array.isArray(response.output)) {
+    // Some models return output as array of message objects
+    const textOutput = response.output.find((o: any) => o.type === 'message' || o.content)
+    if (textOutput?.content) {
+      if (Array.isArray(textOutput.content)) {
+        content = textOutput.content.map((c: any) => c.text || c).join('')
+      } else {
+        content = textOutput.content
+      }
+    }
+  }
+
+  // Log for debugging if content is empty
+  if (!content) {
+    console.warn(`[OpenAI] Empty response from ${apiModel}. Response structure:`, JSON.stringify(response).slice(0, 500))
+  }
 
   return {
     content,
     inputTokens: response.usage?.input_tokens || 0,
     outputTokens: response.usage?.output_tokens || 0,
-    model: config.model, // Return our model ID for consistency
+    model: config.model,
   }
 }
