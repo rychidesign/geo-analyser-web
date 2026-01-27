@@ -30,22 +30,23 @@ export async function callOpenAI(
   // Map to actual API model name
   const apiModel = MODEL_MAP[config.model] || config.model
 
-  const response = await client.chat.completions.create({
+  // GPT-5 models use the Responses API with different parameters
+  // Use responses.create for GPT-5 series
+  const response = await client.responses.create({
     model: apiModel,
-    messages: [
+    input: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    max_completion_tokens: 1000, // Limit response size to speed up (GPT-5 uses this instead of max_tokens)
+    max_output_tokens: 1000, // GPT-5 uses max_output_tokens
   })
 
-  const content = response.choices[0]?.message?.content || ''
-  const usage = response.usage
+  const content = response.output_text || ''
 
   return {
     content,
-    inputTokens: usage?.prompt_tokens || 0,
-    outputTokens: usage?.completion_tokens || 0,
+    inputTokens: response.usage?.input_tokens || 0,
+    outputTokens: response.usage?.output_tokens || 0,
     model: config.model, // Return our model ID for consistency
   }
 }
