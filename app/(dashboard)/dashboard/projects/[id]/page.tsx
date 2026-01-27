@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MetricsChart } from '@/components/charts/metrics-chart'
 import { useScan } from '@/lib/scan/scan-context'
+import { useToast } from '@/components/ui/toast'
 import type { Project, ProjectQuery, Scan } from '@/lib/db/schema'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -42,13 +43,12 @@ export default function ProjectPage() {
   const router = useRouter()
   const projectId = params.id as string
   const { startScan, cancelScan, getJobForProject, hasActiveJob } = useScan()
+  const { showSuccess, showError, showInfo } = useToast()
 
   const [project, setProject] = useState<Project | null>(null)
   const [queries, setQueries] = useState<ProjectQuery[]>([])
   const [scans, setScans] = useState<Scan[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
 
   // Get current scan job status
   const currentJob = getJobForProject(projectId)
@@ -64,10 +64,9 @@ export default function ProjectPage() {
   useEffect(() => {
     if (currentJob?.status === 'completed') {
       loadProject()
-      setInfo('Scan completed successfully!')
-      setTimeout(() => setInfo(null), 3000)
+      showSuccess('Scan completed successfully!')
     } else if (currentJob?.status === 'failed') {
-      setError(`Scan failed: ${currentJob.error}`)
+      showError(`Scan failed: ${currentJob.error}`)
     }
   }, [currentJob?.status])
 
@@ -96,23 +95,18 @@ export default function ProjectPage() {
   }
 
   const runScan = async () => {
-    setError(null)
-    setInfo(null)
-
     try {
       await startScan(projectId, project?.name || 'Project')
-      setInfo('Scan added to queue')
-      setTimeout(() => setInfo(null), 2000)
+      showInfo('Scan added to queue')
     } catch (err: any) {
       console.error('Queue exception:', err)
-      setError(`Failed to queue scan: ${err.message || err}`)
+      showError(`Failed to queue scan: ${err.message || err}`)
     }
   }
 
   const handleCancelScan = () => {
     cancelScan(projectId)
-    setInfo('Scan cancelled')
-    setTimeout(() => setInfo(null), 2000)
+    showInfo('Scan cancelled')
   }
 
   const deleteAllScans = async () => {
@@ -130,10 +124,10 @@ export default function ProjectPage() {
       }
 
       const result = await res.json()
-      setInfo(`Successfully deleted ${result.deletedCount} scans`)
+      showSuccess(`Successfully deleted ${result.deletedCount} scans`)
       loadProject()
     } catch (err: any) {
-      setError(`Failed to delete scans: ${err.message}`)
+      showError(`Failed to delete scans: ${err.message}`)
     }
   }
 
@@ -269,19 +263,6 @@ export default function ProjectPage() {
               )}
             </CardContent>
           </Card>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
-
-        {info && (
-          <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm p-4 rounded-lg mb-6">
-            {info}
-          </div>
         )}
 
         {/* Stats */}

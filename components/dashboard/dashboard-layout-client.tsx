@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { DashboardSidebar } from './sidebar'
 import { MobileHeader } from './mobile-header'
 import { ScanProvider } from '@/lib/scan/scan-context'
+import { ToastProvider } from '@/components/ui/toast'
 import type { User } from '@supabase/supabase-js'
 
 interface DashboardLayoutClientProps {
@@ -15,6 +16,7 @@ export function DashboardLayoutClient({ user, children }: DashboardLayoutClientP
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
+    <ToastProvider>
     <ScanProvider>
       <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
         {/* Mobile Header - visible only on mobile */}
@@ -44,5 +46,6 @@ export function DashboardLayoutClient({ user, children }: DashboardLayoutClientP
         </div>
       </div>
     </ScanProvider>
+    </ToastProvider>
   )
 }

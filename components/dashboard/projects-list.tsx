@@ -102,21 +102,6 @@ export function ProjectsList({ projects }: ProjectsListProps) {
                     </div>
                   </div>
                   
-                  {/* Progress bar for running scans */}
-                  {isRunning && job?.progress.total > 0 && (
-                    <div className="mt-3 pt-3 border-t border-zinc-800">
-                      <div className="flex items-center justify-between text-xs text-zinc-500 mb-1">
-                        <span>Progress</span>
-                        <span>{job.progress.current}/{job.progress.total}</span>
-                      </div>
-                      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${(job.progress.current / job.progress.total) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </Link>

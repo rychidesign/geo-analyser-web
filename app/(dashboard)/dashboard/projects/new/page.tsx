@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { AVAILABLE_MODELS, getModelsByProvider, type LLMProvider, type LLMModel } from '@/lib/llm/types'
+import { useToast } from '@/components/ui/toast'
 
 const LANGUAGES = [
   { value: 'en', label: 'English' },
@@ -31,8 +32,9 @@ const PROVIDERS: { id: LLMProvider; name: string }[] = [
 
 export default function NewProjectPage() {
   const router = useRouter()
+  const { showError } = useToast()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [formError, setFormError] = useState('')
   const [availableProviders, setAvailableProviders] = useState<LLMProvider[]>([])
   
   // Form state
@@ -116,38 +118,28 @@ export default function NewProjectPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
-    
-    console.log('Form validation:', {
-      name: name.trim(),
-      domain: domain.trim(),
-      brandVariations,
-      keywords,
-      selectedModels,
-    })
+    setFormError('')
     
     if (!name.trim()) {
-      setError('Project Name is required')
+      setFormError('Project Name is required')
       return
     }
     
     if (!domain.trim()) {
-      setError('Domain is required')
+      setFormError('Domain is required')
       return
     }
     
     if (brandVariations.length === 0) {
-      setError('Please add at least one Brand Name Variation (click the + button to add)')
-      console.log('Validation failed: brandVariations.length =', brandVariations.length)
+      setFormError('Please add at least one Brand Name Variation (click the + button to add)')
       return
     }
     
     if (selectedModels.length === 0) {
-      setError('Please select at least one AI model')
+      setFormError('Please select at least one AI model')
       return
     }
     
-    console.log('Validation passed, creating project...')
     setLoading(true)
     try {
       const res = await fetch('/api/projects', {
@@ -172,7 +164,7 @@ export default function NewProjectPage() {
       const project = await res.json()
       router.push(`/dashboard/projects/${project.id}`)
     } catch (err: any) {
-      setError(err.message)
+      showError(err.message)
     } finally {
       setLoading(false)
     }
@@ -445,10 +437,10 @@ export default function NewProjectPage() {
             </CardContent>
           </Card>
 
-          {/* Error */}
-          {error && (
+          {/* Form Validation Error */}
+          {formError && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm p-3 rounded-lg">
-              {error}
+              {formError}
             </div>
           )}
         </form>

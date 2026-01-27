@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { ProjectQuery } from '@/lib/db/schema'
+import { useToast } from '@/components/ui/toast'
 
 const QUERY_TYPES = [
   { value: 'informational', label: 'Informational' },
@@ -27,13 +28,12 @@ export default function QueriesPage() {
   const params = useParams()
   const router = useRouter()
   const projectId = params.id as string
+  const { showSuccess, showError } = useToast()
   
   const [queries, setQueries] = useState<ProjectQuery[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   
   const [newQuery, setNewQuery] = useState('')
   const [newQueryType, setNewQueryType] = useState('informational')
@@ -98,8 +98,6 @@ export default function QueriesPage() {
 
   const generateQueries = async () => {
     setGenerating(true)
-    setError(null)
-    setSuccess(null)
     
     try {
       const res = await fetch(`/api/projects/${projectId}/queries/generate`, {
@@ -109,18 +107,15 @@ export default function QueriesPage() {
       const data = await res.json()
       
       if (!res.ok) {
-        setError(data.error || 'Failed to generate queries')
+        showError(data.error || 'Failed to generate queries')
         return
       }
       
       setQueries([...queries, ...data.queries])
-      setSuccess(`Generated ${data.queries.length} queries using ${data.generation.provider} (cost: $${data.generation.cost?.toFixed(4) || '0.0000'})`)
-      
-      // Clear success message after 5 seconds
-      setTimeout(() => setSuccess(null), 5000)
+      showSuccess(`Generated ${data.queries.length} queries using ${data.generation.provider} (cost: $${data.generation.cost?.toFixed(4) || '0.0000'})`)
     } catch (err) {
       console.error('Error generating queries:', err)
-      setError('Failed to generate queries. Please try again.')
+      showError('Failed to generate queries. Please try again.')
     } finally {
       setGenerating(false)
     }
@@ -167,20 +162,6 @@ export default function QueriesPage() {
       {/* Content */}
       <div className="px-4 py-4 lg:px-8 lg:flex-1 lg:overflow-y-auto">
       <div className="max-w-4xl">
-
-      {/* Error message */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-lg mb-6">
-          {error}
-        </div>
-      )}
-
-      {/* Success message */}
-      {success && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm p-4 rounded-lg mb-6">
-          {success}
-        </div>
-      )}
 
       {/* Add New Query */}
       <Card className="mb-6">
