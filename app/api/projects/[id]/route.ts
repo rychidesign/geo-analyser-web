@@ -58,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       'target_keywords',
       'scheduled_scan_enabled', 
       'scheduled_scan_day',
-      'llm_models'
+      'selected_models'  // Database column name
     ]
     
     const updates: Record<string, any> = {}
@@ -66,6 +66,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (body[field] !== undefined) {
         updates[field] = body[field]
       }
+    }
+    
+    // Handle llm_models -> selected_models mapping (frontend sends llm_models)
+    if (body.llm_models !== undefined) {
+      updates.selected_models = body.llm_models
     }
 
     const project = await updateProject(id, updates)

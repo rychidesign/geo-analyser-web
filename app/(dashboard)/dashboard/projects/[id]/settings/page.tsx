@@ -100,7 +100,7 @@ export default function ProjectSettingsPage() {
         setEvaluationMethod(data.evaluation_method || 'ai')
         setBrandVariations(data.brand_variations || [])
         setKeywords(data.target_keywords || [])
-        setSelectedModels((data.llm_models || data.selected_models) || ['gpt-5-nano'])
+        setSelectedModels(data.selected_models || ['gpt-5-nano'])
       }
     } catch (error) {
       console.error('Error loading project:', error)

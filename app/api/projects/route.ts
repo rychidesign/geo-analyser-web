@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       evaluation_method,
       brand_variations,
       target_keywords,
-      llm_models
+      llm_models  // Frontend sends as llm_models
     } = body
 
     // Validation
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       evaluation_method: evaluation_method || 'ai',
       brand_variations: brand_variations.filter((b: string) => b.trim()),
       target_keywords: target_keywords?.filter((k: string) => k.trim()) || [],
-      llm_models: llm_models,
+      selected_models: llm_models,  // Database column is selected_models
       scheduled_scan_enabled: false,
       scheduled_scan_day: null,
       last_scheduled_scan_at: null,
