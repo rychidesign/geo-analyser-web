@@ -272,7 +272,7 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
         overall_score: aggregatedMetrics.overall,
         avg_visibility: aggregatedMetrics.visibility,
         avg_sentiment: aggregatedMetrics.sentiment,
-        avg_citation: aggregatedMetrics.citation,
+        avg_citation: 0, // Deprecated - visibility now includes domain
         avg_ranking: aggregatedMetrics.ranking,
         total_cost_usd: totalCost,
         total_input_tokens: totalInputTokens,
@@ -341,34 +341,31 @@ ${content}
 
 Evaluate the response on these metrics (return scores 0-100):
 
-1. **Visibility Score** (0-100): Is the brand mentioned at all? 
-   - 100 if mentioned, 0 if not mentioned
+1. **Visibility Score** (0-100): Combined brand + domain presence
+   - 100 = both brand AND domain are mentioned
+   - 70 = only brand is mentioned
+   - 30 = only domain is mentioned
+   - 0 = neither brand nor domain is mentioned
 
 2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
-   - 0 = very negative
-   - 50 = neutral (just mentioned, no opinion)
-   - 100 = very positive (highly recommended, praised)
+   - ONLY score if brand IS mentioned. If brand NOT mentioned, return 0.
+   - 0 = very negative, 50 = neutral, 100 = very positive
 
-3. **Citation Score** (0-100): Is the domain/URL cited?
-   - 100 if domain is mentioned, 0 if not
-
-4. **Ranking Score** (0-100): If mentioned in a list, what position?
+3. **Ranking Score** (0-100): If mentioned in a list, what position?
    - 100 = first/top position
    - 80 = second position
    - 60 = third position
-   - 40 = fourth position
-   - 20 = fifth or lower
+   - 40 = fourth or lower
    - 0 = not in a list or not mentioned
 
-5. **Recommendation Score** (0-100): Overall, how strongly is the brand recommended?
-   - Consider: visibility, sentiment, ranking, prominence
-   - This is a weighted overall score
+4. **Recommendation Score** (0-100): Overall, how strongly is the brand recommended?
+   - If brand NOT mentioned, return 0
+   - If brand IS mentioned, consider: visibility, sentiment, ranking, prominence
 
 Return ONLY a JSON object with this exact structure (no explanation):
 {
   "visibility_score": <number>,
   "sentiment_score": <number>,
-  "citation_score": <number>,
   "ranking_score": <number>,
   "recommendation_score": <number>
 }`
@@ -403,8 +400,7 @@ Return ONLY a JSON object with this exact structure (no explanation):
     return {
       metrics: {
         visibility_score: Math.min(100, Math.max(0, metrics.visibility_score || 0)),
-        sentiment_score: Math.min(100, Math.max(0, metrics.sentiment_score || 50)),
-        citation_score: Math.min(100, Math.max(0, metrics.citation_score || 0)),
+        sentiment_score: Math.min(100, Math.max(0, metrics.sentiment_score || 0)),
         ranking_score: Math.min(100, Math.max(0, metrics.ranking_score || 0)),
         recommendation_score: Math.min(100, Math.max(0, metrics.recommendation_score || 0)),
       },
@@ -440,15 +436,22 @@ function analyzeResponse(
 ): ScanMetrics {
   const lowerContent = content.toLowerCase()
   
-  // Visibility Score (0-100): Is brand mentioned?
+  // Check presence
   const brandMentioned = brandVariations.some(brand => 
     lowerContent.includes(brand.toLowerCase())
   )
-  const visibilityScore = brandMentioned ? 100 : 0
+  const domainMentioned = lowerContent.includes(domain.toLowerCase())
 
-  // Citation Score (0-100): Is domain/URL cited?
-  const domainCited = lowerContent.includes(domain.toLowerCase())
-  const citationScore = domainCited ? 100 : 0
+  // Combined Visibility Score: brand + domain presence
+  // 100 = both mentioned, 70 = brand only, 30 = domain only, 0 = neither
+  let visibilityScore = 0
+  if (brandMentioned && domainMentioned) {
+    visibilityScore = 100
+  } else if (brandMentioned) {
+    visibilityScore = 70
+  } else if (domainMentioned) {
+    visibilityScore = 30
+  }
 
   // Sentiment Score (0-100): Only calculated when brand is mentioned
   // 50 = neutral, 0 = negative, 100 = positive
@@ -565,21 +568,16 @@ function analyzeResponse(
 
   // Recommendation Score (0-100): Weighted combination
   let recommendationScore = 0
-  recommendationScore += visibilityScore * 0.3      // 30% weight
-  recommendationScore += citationScore * 0.2        // 20% weight
-  recommendationScore += (sentimentScore - 50) * 0.3 // 30% weight (centered at 50)
-  recommendationScore += rankingScore * 0.2         // 20% weight
-  recommendationScore = Math.min(100, Math.max(0, Math.round(recommendationScore + 35))) // Base of 35 if visible
-
-  // If not visible at all, recommendation should be 0
-  if (!brandMentioned) {
-    recommendationScore = 0
+  if (brandMentioned) {
+    recommendationScore += visibilityScore * 0.35     // 35% weight (includes domain)
+    recommendationScore += (sentimentScore - 50) * 0.35 // 35% weight (centered at 50)
+    recommendationScore += rankingScore * 0.3         // 30% weight
+    recommendationScore = Math.min(100, Math.max(0, Math.round(recommendationScore + 30))) // Base of 30 if visible
   }
 
   return {
     visibility_score: visibilityScore,
     sentiment_score: sentimentScore,
-    citation_score: citationScore,
     ranking_score: rankingScore,
     recommendation_score: recommendationScore,
   }
@@ -589,33 +587,30 @@ interface AggregatedMetrics {
   overall: number
   visibility: number
   sentiment: number
-  citation: number
   ranking: number
 }
 
 function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
   if (results.length === 0) {
-    return { overall: 0, visibility: 0, sentiment: 0, citation: 0, ranking: 0 }
+    return { overall: 0, visibility: 0, sentiment: 0, ranking: 0 }
   }
 
   const metricsResults = results.filter(r => r.metrics_json)
   
   if (metricsResults.length === 0) {
-    return { overall: 0, visibility: 0, sentiment: 0, citation: 0, ranking: 0 }
+    return { overall: 0, visibility: 0, sentiment: 0, ranking: 0 }
   }
 
   // Calculate averages
   let totalVisibility = 0
   let totalSentiment = 0
   let sentimentCount = 0 // Only count sentiment when brand is mentioned
-  let totalCitation = 0
   let totalRanking = 0
   let totalRecommendation = 0
 
   for (const result of metricsResults) {
     const metrics = result.metrics_json as ScanMetrics
     totalVisibility += metrics.visibility_score
-    totalCitation += metrics.citation_score
     totalRanking += metrics.ranking_score
     totalRecommendation += metrics.recommendation_score
     
@@ -631,7 +626,6 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
   return {
     visibility: Math.round(totalVisibility / count),
     sentiment: sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : 0,
-    citation: Math.round(totalCitation / count),
     ranking: Math.round(totalRanking / count),
     overall: Math.round(totalRecommendation / count),
   }

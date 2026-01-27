@@ -53,6 +53,17 @@ function analyzeResponse(response: string, brandVariations: string[], domain: st
   
   const domainMentioned = lowerResponse.includes(domain.toLowerCase())
   
+  // Combined visibility score: brand + domain presence
+  // 100 = both mentioned, 70 = brand only, 30 = domain only, 0 = neither
+  let visibilityScore = 0
+  if (brandMentioned && domainMentioned) {
+    visibilityScore = 100
+  } else if (brandMentioned) {
+    visibilityScore = 70
+  } else if (domainMentioned) {
+    visibilityScore = 30
+  }
+  
   // Only calculate sentiment if brand is mentioned
   let sentimentScore = 0
   if (brandMentioned) {
@@ -99,22 +110,20 @@ function analyzeResponse(response: string, brandVariations: string[], domain: st
     }
   }
   
-  // Calculate recommendation score
+  // Calculate recommendation score (weighted combination)
   let recommendationScore = 0
   if (brandMentioned) {
     recommendationScore = Math.round(
-      (100 * 0.3) + // visibility weight
-      (domainMentioned ? 100 : 0) * 0.2 + // citation weight
-      ((sentimentScore - 50) * 2) * 0.3 + // sentiment weight (normalized)
-      rankingScore * 0.2 // ranking weight
+      visibilityScore * 0.35 + // visibility weight (includes domain)
+      ((sentimentScore - 50) * 2) * 0.35 + // sentiment weight (normalized)
+      rankingScore * 0.3 // ranking weight
     )
     recommendationScore = Math.min(100, Math.max(0, recommendationScore))
   }
   
   return {
-    visibility_score: brandMentioned ? 100 : 0,
+    visibility_score: visibilityScore,
     sentiment_score: sentimentScore,
-    citation_score: domainMentioned ? 100 : 0,
     ranking_score: rankingScore,
     recommendation_score: recommendationScore,
   }

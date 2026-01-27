@@ -19,22 +19,46 @@ export function analyzeResponseRegex(
   // Check if domain is mentioned
   const domainMentioned = lowerResponse.includes(domain.toLowerCase())
   
-  // Simple sentiment analysis (presence of positive/negative words)
-  const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier']
-  const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing']
+  // Combined visibility score: brand + domain presence
+  let visibilityScore = 0
+  if (brandMentioned && domainMentioned) {
+    visibilityScore = 100
+  } else if (brandMentioned) {
+    visibilityScore = 70
+  } else if (domainMentioned) {
+    visibilityScore = 30
+  }
   
-  const positiveCount = positiveWords.filter(word => lowerResponse.includes(word)).length
-  const negativeCount = negativeWords.filter(word => lowerResponse.includes(word)).length
+  // Simple sentiment analysis (only if brand is mentioned)
+  let sentimentScore = 0
+  let rankingScore = 0
+  let recommendationScore = 0
   
-  const sentimentScore = positiveCount > 0 ? 
-    (negativeCount > 0 ? 50 : 75) : 
-    (negativeCount > 0 ? 25 : 50)
+  if (brandMentioned) {
+    const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier']
+    const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing']
+    
+    const positiveCount = positiveWords.filter(word => lowerResponse.includes(word)).length
+    const negativeCount = negativeWords.filter(word => lowerResponse.includes(word)).length
+    
+    sentimentScore = positiveCount > 0 ? 
+      (negativeCount > 0 ? 50 : 75) : 
+      (negativeCount > 0 ? 25 : 50)
+    
+    rankingScore = positiveCount > 0 ? 90 : 50
+    
+    recommendationScore = Math.round(
+      visibilityScore * 0.35 +
+      ((sentimentScore - 50) * 2) * 0.35 +
+      rankingScore * 0.3
+    )
+    recommendationScore = Math.min(100, Math.max(0, recommendationScore))
+  }
   
   return {
-    visibility_score: brandMentioned ? 100 : 0,
-    sentiment_score: brandMentioned ? sentimentScore : 0,
-    citation_score: domainMentioned ? 100 : 0,
-    ranking_score: brandMentioned ? (positiveCount > 0 ? 90 : 50) : 0,
-    recommendation_score: brandMentioned ? sentimentScore : 0,
+    visibility_score: visibilityScore,
+    sentiment_score: sentimentScore,
+    ranking_score: rankingScore,
+    recommendation_score: recommendationScore,
   }
 }

@@ -19,26 +19,24 @@ AI Response to analyze:
 
 Evaluate the response on these metrics (return scores 0-100):
 
-1. **Visibility Score** (0-100): Is the brand mentioned at all? 
-   - 100 if mentioned, 0 if not mentioned
+1. **Visibility Score** (0-100): Combined brand + domain presence
+   - 100 = both brand AND domain are mentioned
+   - 70 = only brand is mentioned
+   - 30 = only domain is mentioned
+   - 0 = neither brand nor domain is mentioned
 
 2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
    - IMPORTANT: Only score this if the brand IS mentioned. If brand is NOT mentioned, return 0.
    - If brand is mentioned: 0 = very negative, 50 = neutral, 100 = very positive
-   - Consider: tone, adjectives used, comparison with competitors
 
-3. **Citation Score** (0-100): Is the domain/URL cited?
-   - 100 if domain is mentioned, 0 if not
-
-4. **Ranking Score** (0-100): If mentioned in a list, what position?
+3. **Ranking Score** (0-100): If mentioned in a list, what position?
    - 100 = first/top position
    - 80 = second position
    - 60 = third position
-   - 40 = fourth position
-   - 20 = fifth or lower
+   - 40 = fourth or lower
    - 0 = not in a list or not mentioned
 
-5. **Recommendation Score** (0-100): Overall, how strongly is the brand recommended?
+4. **Recommendation Score** (0-100): Overall, how strongly is the brand recommended?
    - If brand is NOT mentioned, return 0
    - If brand IS mentioned, consider: visibility, sentiment, ranking, prominence
 
@@ -46,7 +44,6 @@ Return ONLY a JSON object with this exact structure (no explanation):
 {
   "visibility_score": <number>,
   "sentiment_score": <number>,
-  "citation_score": <number>,
   "ranking_score": <number>,
   "recommendation_score": <number>
 }`
@@ -145,8 +142,7 @@ export async function POST(request: NextRequest) {
     // Validate and clamp scores
     const validatedMetrics = {
       visibility_score: Math.min(100, Math.max(0, metrics.visibility_score || 0)),
-      sentiment_score: Math.min(100, Math.max(0, metrics.sentiment_score || 50)),
-      citation_score: Math.min(100, Math.max(0, metrics.citation_score || 0)),
+      sentiment_score: Math.min(100, Math.max(0, metrics.sentiment_score || 0)),
       ranking_score: Math.min(100, Math.max(0, metrics.ranking_score || 0)),
       recommendation_score: Math.min(100, Math.max(0, metrics.recommendation_score || 0)),
     }

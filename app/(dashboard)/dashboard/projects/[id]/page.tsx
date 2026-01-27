@@ -17,7 +17,6 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  Quote,
   Smile,
   TrendingUp,
   Target,
@@ -266,7 +265,7 @@ export default function ProjectPage() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
             <CardHeader className="pb-0">
               <div className="flex items-start justify-between">
@@ -293,7 +292,7 @@ export default function ProjectPage() {
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Visibility</div>
-              <p className="text-xs text-zinc-500">How often your brand is mentioned in responses</p>
+              <p className="text-xs text-zinc-500">Brand + domain presence (100=both, 70=brand, 30=domain)</p>
             </CardContent>
           </Card>
 
@@ -309,21 +308,6 @@ export default function ProjectPage() {
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Sentiment</div>
               <p className="text-xs text-zinc-500">Tone of mentions (only when brand is present)</p>
-            </CardContent>
-          </Card>
-
-          <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
-            <CardHeader className="pb-0">
-              <div className="flex items-start justify-between">
-                <div className="text-2xl font-bold text-purple-400">
-                  {lastScan?.avg_citation ?? '-'}%
-                </div>
-                <Quote className="w-4 h-4 text-zinc-400" />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="text-xs font-medium text-zinc-300 mb-1">Citation</div>
-              <p className="text-xs text-zinc-500">Direct references to your brand or domain</p>
             </CardContent>
           </Card>
 
@@ -488,11 +472,7 @@ export default function ProjectPage() {
                             </span>
                             <span className="flex items-center gap-1">
                               <ThumbsUp className="w-3.5 h-3.5" />
-                              {scan.avg_sentiment ?? 50}%
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Quote className="w-3.5 h-3.5" />
-                              {scan.avg_citation ?? 0}%
+                              {scan.avg_sentiment ?? 0}%
                             </span>
                             <span className="flex items-center gap-1">
                               <Award className="w-3.5 h-3.5" />

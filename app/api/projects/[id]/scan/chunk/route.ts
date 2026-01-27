@@ -20,6 +20,17 @@ function analyzeResponseRegex(response: string, brandVariations: string[], domai
   // Check if domain is mentioned
   const domainMentioned = lowerResponse.includes(domain.toLowerCase())
   
+  // Combined visibility score: brand + domain presence
+  // 100 = both mentioned, 70 = brand only, 30 = domain only, 0 = neither
+  let visibilityScore = 0
+  if (brandMentioned && domainMentioned) {
+    visibilityScore = 100
+  } else if (brandMentioned) {
+    visibilityScore = 70
+  } else if (domainMentioned) {
+    visibilityScore = 30
+  }
+  
   // Only calculate sentiment if brand is mentioned
   let sentimentScore = 0
   let rankingScore = 0
@@ -38,13 +49,19 @@ function analyzeResponseRegex(response: string, brandVariations: string[], domai
       (negativeCount > 0 ? 25 : 50)
     
     rankingScore = positiveCount > 0 ? 90 : 50
-    recommendationScore = sentimentScore
+    
+    // Recommendation based on all factors
+    recommendationScore = Math.round(
+      visibilityScore * 0.35 +
+      ((sentimentScore - 50) * 2) * 0.35 +
+      rankingScore * 0.3
+    )
+    recommendationScore = Math.min(100, Math.max(0, recommendationScore))
   }
   
   return {
-    visibility_score: brandMentioned ? 100 : 0,
+    visibility_score: visibilityScore,
     sentiment_score: sentimentScore,
-    citation_score: domainMentioned ? 100 : 0,
     ranking_score: rankingScore,
     recommendation_score: recommendationScore,
   }

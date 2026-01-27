@@ -13,7 +13,6 @@ import {
   DollarSign,
   Eye,
   EyeOff,
-  Quote,
   TrendingUp,
   Award,
   Cpu,
@@ -288,12 +287,6 @@ export default function ScanResultsPage() {
                                 {metrics.visibility_score}%
                               </span>
                               <span className={`flex items-center gap-1 text-sm ${
-                                metrics.citation_score > 0 ? 'text-blue-400' : 'text-zinc-500'
-                              }`}>
-                                <Quote className="w-4 h-4" />
-                                {metrics.citation_score}%
-                              </span>
-                              <span className={`flex items-center gap-1 text-sm ${
                                 metrics.ranking_score > 0 ? 'text-yellow-400' : 'text-zinc-500'
                               }`}>
                                 <Award className="w-4 h-4" />
@@ -316,7 +309,7 @@ export default function ScanResultsPage() {
                         <div className="p-4 border-t border-zinc-800">
                           {/* Metrics Grid */}
                           {metrics && (
-                            <div className="grid grid-cols-5 gap-4 mb-4 p-3 bg-zinc-900 rounded-lg">
+                            <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-zinc-900 rounded-lg">
                               <div className="text-center">
                                 <div className="text-xs text-zinc-500 mb-1">Visibility</div>
                                 <div className={`text-lg font-bold ${metrics.visibility_score > 0 ? 'text-emerald-400' : 'text-zinc-600'}`}>
@@ -330,12 +323,6 @@ export default function ScanResultsPage() {
                                   metrics.sentiment_score < 40 ? 'text-red-400' : 'text-zinc-400'
                                 }`}>
                                   {metrics.sentiment_score}%
-                                </div>
-                              </div>
-                              <div className="text-center">
-                                <div className="text-xs text-zinc-500 mb-1">Citation</div>
-                                <div className={`text-lg font-bold ${metrics.citation_score > 0 ? 'text-blue-400' : 'text-zinc-600'}`}>
-                                  {metrics.citation_score}%
                                 </div>
                               </div>
                               <div className="text-center">
