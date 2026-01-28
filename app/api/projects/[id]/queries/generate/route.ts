@@ -4,7 +4,7 @@ import { TABLES } from '@/lib/db/schema'
 import { callLLM } from '@/lib/llm'
 import type { LLMProvider, LLMModel } from '@/lib/llm/types'
 
-const GENERATION_PROMPT = `You are an expert in GEO (Generative Engine Optimization) and SEO. Your task is to generate test queries that will be used to evaluate how well AI models organically mention and recommend brands in a specific industry.
+const GENERATION_PROMPT = `You are an expert in GEO (Generative Engine Optimization). Generate test queries that real people would ask an AI assistant.
 
 Context (for understanding the industry only - DO NOT use these names in queries):
 - Industry/Category: Based on keywords: {keywords}
@@ -12,31 +12,33 @@ Context (for understanding the industry only - DO NOT use these names in queries
 - Language: {language}
 
 CRITICAL RULES:
-1. DO NOT include any brand names, company names, or product names in the queries
+1. DO NOT include any brand names, company names, or product names
 2. Queries must be GENERIC industry questions where a brand MIGHT naturally be recommended
-3. The goal is to test if AI will organically mention the brand without being asked about it directly
+3. The goal is to test if AI will organically mention the brand without being asked directly
 
-Generate exactly 5 diverse test queries that a potential customer might ask an AI assistant. The queries should:
+Generate exactly 5 diverse test queries. Make them sound HUMAN and CONVERSATIONAL:
 
-1. Cover different query types:
-   - Informational (e.g., "What are the best tools for project management?")
-   - Transactional (e.g., "Where can I find affordable CRM software?")
-   - Comparison (e.g., "What should I consider when choosing an email marketing platform?")
+**SOUND LIKE A REAL PERSON:**
+- Use casual, everyday language (not corporate-speak)
+- Include conversational starters: "I'm looking for...", "Can you recommend...", "What's the go-to for...", "I need help with..."
+- Add context/situation: "I've been doing X manually but...", "My team is growing and we need...", "I'm a beginner and..."
+- Express frustration or goals: "I'm tired of...", "I want something that...", "Is there anything that actually..."
+- Ask like talking to a friend: "Hey, what do people use for...", "Any suggestions for..."
 
-2. Be natural and realistic - the way real users would ask
+**VARY THE STYLE:**
+- Some short and direct: "best app for X?"
+- Some with personal context: "I run a small business and need..."
+- Some comparing approaches: "should I use X approach or Y approach for..."
+- Some problem-focused: "how do I solve..." or "what's the easiest way to..."
 
-3. Cover different aspects:
-   - General category/industry searches
-   - Problem-solving queries
-   - Recommendation requests
-   - "Best of" and "top" lists
-   - How-to questions related to the industry
+**QUERY TYPES TO COVER:**
+- Informational: seeking knowledge ("how does X work?", "what should I know about...")
+- Transactional: ready to act ("where can I find...", "what's a good...")
+- Comparison: evaluating options ("what's better for...", "pros and cons of...")
 
-4. Use the provided language for the queries
+**USE THE PROVIDED LANGUAGE** - If Czech, write in natural spoken Czech. If English, use casual English.
 
-5. NEVER mention specific brands - keep queries generic to the industry/category
-
-Return ONLY a valid JSON array of objects with this exact structure:
+Return ONLY a valid JSON array:
 [
   {
     "query_text": "The actual query text",
@@ -44,7 +46,7 @@ Return ONLY a valid JSON array of objects with this exact structure:
   }
 ]
 
-Do not include any explanation, markdown formatting, or anything else - just the JSON array.`
+No explanation, no markdown - just the JSON array.`
 
 export async function POST(
   request: Request,
