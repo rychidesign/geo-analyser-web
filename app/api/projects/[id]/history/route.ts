@@ -52,8 +52,9 @@ export async function GET(
       overall: number
       visibility: number
       sentimentSum: number
-      sentimentCount: number  // Track scans with sentiment (visibility > 0)
-      ranking: number
+      sentimentCount: number  // Track scans with visibility > 0
+      rankingSum: number
+      rankingCount: number    // Track scans with visibility > 0
     }> = {}
 
     console.log(`[History] Found ${scans?.length || 0} scans for project ${projectId}`)
@@ -83,19 +84,25 @@ export async function GET(
           visibility: 0,
           sentimentSum: 0,
           sentimentCount: 0,
-          ranking: 0,
+          rankingSum: 0,
+          rankingCount: 0,
         }
       }
 
       dailyData[dateKey].scans += 1
       dailyData[dateKey].overall += scan.overall_score || 0
       dailyData[dateKey].visibility += scan.avg_visibility || 0
-      dailyData[dateKey].ranking += scan.avg_ranking || 0
       
-      // Only include sentiment if scan had visibility (sentiment is not null)
-      if (scan.avg_visibility && scan.avg_visibility > 0 && scan.avg_sentiment !== null) {
-        dailyData[dateKey].sentimentSum += scan.avg_sentiment
-        dailyData[dateKey].sentimentCount += 1
+      // Only include sentiment and ranking if scan had visibility > 0
+      if (scan.avg_visibility && scan.avg_visibility > 0) {
+        if (scan.avg_sentiment !== null) {
+          dailyData[dateKey].sentimentSum += scan.avg_sentiment
+          dailyData[dateKey].sentimentCount += 1
+        }
+        if (scan.avg_ranking !== null) {
+          dailyData[dateKey].rankingSum += scan.avg_ranking
+          dailyData[dateKey].rankingCount += 1
+        }
       }
     }
 
@@ -108,9 +115,9 @@ export async function GET(
         scans: day.scans,
         overall: Math.round(day.overall / day.scans),
         visibility: Math.round(day.visibility / day.scans),
-        // Sentiment is null if no scans with visibility > 0
+        // Sentiment and ranking are null if no scans with visibility > 0
         sentiment: day.sentimentCount > 0 ? Math.round(day.sentimentSum / day.sentimentCount) : null,
-        ranking: Math.round(day.ranking / day.scans),
+        ranking: day.rankingCount > 0 ? Math.round(day.rankingSum / day.rankingCount) : null,
       }))
       .sort((a, b) => a.date.localeCompare(b.date)) // Sort by date ascending
 

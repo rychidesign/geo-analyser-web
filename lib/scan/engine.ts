@@ -641,37 +641,41 @@ interface AggregatedMetrics {
   overall: number
   visibility: number
   sentiment: number | null  // null when no visibility (n/a)
-  ranking: number
+  ranking: number | null    // null when no visibility (n/a)
 }
 
 function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
   if (results.length === 0) {
-    return { overall: 0, visibility: 0, sentiment: null, ranking: 0 }
+    return { overall: 0, visibility: 0, sentiment: null, ranking: null }
   }
 
   const metricsResults = results.filter(r => r.metrics_json)
   
   if (metricsResults.length === 0) {
-    return { overall: 0, visibility: 0, sentiment: null, ranking: 0 }
+    return { overall: 0, visibility: 0, sentiment: null, ranking: null }
   }
 
   // Calculate averages
   let totalVisibility = 0
   let totalSentiment = 0
-  let sentimentCount = 0 // Only count sentiment when brand is mentioned
+  let sentimentCount = 0 // Only count when brand is mentioned (visibility > 0)
   let totalRanking = 0
+  let rankingCount = 0   // Only count when brand is mentioned (visibility > 0)
   let totalRecommendation = 0
 
   for (const result of metricsResults) {
     const metrics = result.metrics_json as ScanMetrics
     totalVisibility += metrics.visibility_score
-    totalRanking += metrics.ranking_score
     totalRecommendation += metrics.recommendation_score
     
-    // Only include sentiment in average if it exists (visibility > 0)
-    if (metrics.sentiment_score !== null) {
-      totalSentiment += metrics.sentiment_score
-      sentimentCount++
+    // Only include sentiment and ranking when visibility > 0
+    if (metrics.visibility_score > 0) {
+      if (metrics.sentiment_score !== null) {
+        totalSentiment += metrics.sentiment_score
+        sentimentCount++
+      }
+      totalRanking += metrics.ranking_score
+      rankingCount++
     }
   }
 
@@ -680,7 +684,7 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
   return {
     visibility: Math.round(totalVisibility / count),
     sentiment: sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : null,
-    ranking: Math.round(totalRanking / count),
+    ranking: rankingCount > 0 ? Math.round(totalRanking / rankingCount) : null,
     overall: Math.round(totalRecommendation / count),
   }
 }

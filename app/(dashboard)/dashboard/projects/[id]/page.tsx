@@ -195,12 +195,17 @@ export default function ProjectPage() {
     overall: Math.round(completedScans.reduce((sum, s) => sum + (s.overall_score || 0), 0) / completedScans.length),
     visibility: Math.round(completedScans.reduce((sum, s) => sum + (s.avg_visibility || 0), 0) / completedScans.length),
     sentiment: (() => {
-      // Only average sentiment from scans where brand was mentioned (visibility > 0 and sentiment is not null)
-      const scansWithSentiment = completedScans.filter(s => (s.avg_visibility || 0) > 0 && s.avg_sentiment !== null)
-      if (scansWithSentiment.length === 0) return null  // n/a when no visibility
-      return Math.round(scansWithSentiment.reduce((sum, s) => sum + (s.avg_sentiment || 0), 0) / scansWithSentiment.length)
+      // Only average sentiment from scans where brand was mentioned (visibility > 0)
+      const scansWithVisibility = completedScans.filter(s => (s.avg_visibility || 0) > 0 && s.avg_sentiment !== null)
+      if (scansWithVisibility.length === 0) return null  // n/a when no visibility
+      return Math.round(scansWithVisibility.reduce((sum, s) => sum + (s.avg_sentiment || 0), 0) / scansWithVisibility.length)
     })(),
-    ranking: Math.round(completedScans.reduce((sum, s) => sum + (s.avg_ranking || 0), 0) / completedScans.length),
+    ranking: (() => {
+      // Only average ranking from scans where brand was mentioned (visibility > 0)
+      const scansWithVisibility = completedScans.filter(s => (s.avg_visibility || 0) > 0 && s.avg_ranking !== null)
+      if (scansWithVisibility.length === 0) return null  // n/a when no visibility
+      return Math.round(scansWithVisibility.reduce((sum, s) => sum + (s.avg_ranking || 0), 0) / scansWithVisibility.length)
+    })(),
   } : null
 
   return (
@@ -367,15 +372,15 @@ export default function ProjectPage() {
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
             <CardHeader className="pb-0">
               <div className="flex items-start justify-between">
-                <div className="text-2xl font-bold text-pink-400">
-                  {avgMetrics?.ranking ?? '-'}%
+                <div className={`text-2xl font-bold ${avgMetrics && avgMetrics.ranking !== null ? 'text-pink-400' : 'text-zinc-600'}`}>
+                  {avgMetrics && avgMetrics.ranking !== null ? `${avgMetrics.ranking}%` : 'n/a'}
                 </div>
                 <TrendingUp className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Ranking</div>
-              <p className="text-xs text-zinc-500">Position when AI lists recommendations</p>
+              <p className="text-xs text-zinc-500">Only counted when brand is mentioned</p>
             </CardContent>
           </Card>
         </div>
@@ -532,7 +537,7 @@ export default function ProjectPage() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Award className="w-3.5 h-3.5" />
-                              {scan.avg_ranking ?? 0}%
+                              {(scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null ? `${scan.avg_ranking}%` : 'n/a'}
                             </span>
                           </div>
                           {/* Mobile: Cost on second row right */}

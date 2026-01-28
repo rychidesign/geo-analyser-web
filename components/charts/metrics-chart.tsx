@@ -18,7 +18,7 @@ interface HistoryData {
   overall: number
   visibility: number
   sentiment: number | null  // null when no visibility (n/a)
-  ranking: number
+  ranking: number | null    // null when no visibility (n/a)
 }
 
 interface MetricsChartProps {
@@ -221,6 +221,7 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
                 strokeWidth={1.5}
                 dot={false}
                 activeDot={{ r: 3, strokeWidth: 0 }}
+                connectNulls={false}
               />
             )}
           </LineChart>
