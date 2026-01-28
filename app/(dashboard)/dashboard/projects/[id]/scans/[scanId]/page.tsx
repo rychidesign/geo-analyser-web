@@ -210,11 +210,12 @@ export default function ScanResultsPage() {
           <CardContent className="pt-4 pb-4 text-center">
             <div className="text-xs text-zinc-500 mb-1">Sentiment</div>
             <div className={`text-2xl font-bold ${
-              scan.avg_sentiment === null ? 'text-zinc-600' :
+              // Show n/a when no visibility (sentiment not applicable)
+              (scan.avg_visibility ?? 0) === 0 || scan.avg_sentiment === null ? 'text-zinc-600' :
               scan.avg_sentiment > 60 ? 'text-emerald-400' :
               scan.avg_sentiment < 40 ? 'text-red-400' : 'text-zinc-400'
             }`}>
-              {scan.avg_sentiment !== null ? `${scan.avg_sentiment}%` : 'n/a'}
+              {(scan.avg_visibility ?? 0) > 0 && scan.avg_sentiment !== null ? `${scan.avg_sentiment}%` : 'n/a'}
             </div>
           </CardContent>
         </Card>
@@ -320,11 +321,12 @@ export default function ScanResultsPage() {
                               <div className="text-center">
                                 <div className="text-xs text-zinc-500 mb-1">Sentiment</div>
                                 <div className={`text-lg font-bold ${
-                                  metrics.sentiment_score === null ? 'text-zinc-600' :
+                                  // Show n/a when no visibility (sentiment not applicable)
+                                  metrics.visibility_score === 0 || metrics.sentiment_score === null ? 'text-zinc-600' :
                                   metrics.sentiment_score > 60 ? 'text-emerald-400' :
                                   metrics.sentiment_score < 40 ? 'text-red-400' : 'text-zinc-400'
                                 }`}>
-                                  {metrics.sentiment_score !== null ? `${metrics.sentiment_score}%` : 'n/a'}
+                                  {metrics.visibility_score > 0 && metrics.sentiment_score !== null ? `${metrics.sentiment_score}%` : 'n/a'}
                                 </div>
                               </div>
                               <div className="text-center">

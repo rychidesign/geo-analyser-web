@@ -528,7 +528,7 @@ export default function ProjectPage() {
                             </span>
                             <span className="flex items-center gap-1">
                               <ThumbsUp className="w-3.5 h-3.5" />
-                              {scan.avg_sentiment !== null ? `${scan.avg_sentiment}%` : 'n/a'}
+                              {(scan.avg_visibility ?? 0) > 0 && scan.avg_sentiment !== null ? `${scan.avg_sentiment}%` : 'n/a'}
                             </span>
                             <span className="flex items-center gap-1">
                               <Award className="w-3.5 h-3.5" />
