@@ -285,10 +285,10 @@ export default function ScanResultsPage() {
                                 {metrics.visibility_score}%
                               </span>
                               <span className={`flex items-center gap-1 text-sm ${
-                                metrics.ranking_score > 0 ? 'text-yellow-400' : 'text-zinc-500'
+                                metrics.visibility_score > 0 && metrics.ranking_score > 0 ? 'text-yellow-400' : 'text-zinc-500'
                               }`}>
                                 <Award className="w-4 h-4" />
-                                {metrics.ranking_score}%
+                                {metrics.visibility_score > 0 && metrics.ranking_score > 0 ? `${metrics.ranking_score}%` : 'n/a'}
                               </span>
                               <span className="flex items-center gap-1 text-sm text-emerald-400 font-medium">
                                 <TrendingUp className="w-4 h-4" />
