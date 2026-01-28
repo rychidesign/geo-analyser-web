@@ -16,7 +16,9 @@ import {
   TrendingUp,
   Award,
   Cpu,
-  Trash2
+  Trash2,
+  Target,
+  Smile
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -125,6 +127,20 @@ export default function ScanResultsPage() {
     return acc
   }, {} as Record<string, ScanResult[]>)
 
+  // Calculate ranking only from results where ranking > 0 (not n/a)
+  const calculatedRanking = (() => {
+    const resultsWithRanking = results.filter(r => {
+      const metrics = r.metrics_json as ScanMetrics | null
+      return metrics && metrics.visibility_score > 0 && metrics.ranking_score > 0
+    })
+    if (resultsWithRanking.length === 0) return null
+    const sum = resultsWithRanking.reduce((acc, r) => {
+      const metrics = r.metrics_json as ScanMetrics
+      return acc + metrics.ranking_score
+    }, 0)
+    return Math.round(sum / resultsWithRanking.length)
+  })()
+
   return (
     <>
       {/* Header */}
@@ -189,46 +205,68 @@ export default function ScanResultsPage() {
       <div className="px-4 py-4 lg:px-8 lg:flex-1 lg:overflow-y-auto">
 
       {/* Score Metrics */}
-      <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-        <Card>
-          <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-xs text-zinc-500 mb-1">Overall</div>
-            <div className="text-2xl font-bold text-emerald-400">
-              {scan.overall_score ?? 0}%
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+          <CardHeader className="pb-0">
+            <div className="flex items-start justify-between">
+              <div className="text-2xl font-bold text-emerald-400">
+                {scan.overall_score ?? 0}%
+              </div>
+              <Target className="w-4 h-4 text-zinc-400" />
             </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="text-xs font-medium text-zinc-300 mb-1">Overall Score</div>
+            <p className="text-xs text-zinc-500">Weighted recommendation strength</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-xs text-zinc-500 mb-1">Visibility</div>
-            <div className={`text-2xl font-bold ${(scan.avg_visibility ?? 0) > 0 ? 'text-emerald-400' : 'text-zinc-600'}`}>
-              {scan.avg_visibility ?? 0}%
+
+        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+          <CardHeader className="pb-0">
+            <div className="flex items-start justify-between">
+              <div className={`text-2xl font-bold ${(scan.avg_visibility ?? 0) > 0 ? 'text-blue-400' : 'text-zinc-600'}`}>
+                {scan.avg_visibility ?? 0}%
+              </div>
+              <Eye className="w-4 h-4 text-zinc-400" />
             </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="text-xs font-medium text-zinc-300 mb-1">Visibility</div>
+            <p className="text-xs text-zinc-500">Brand (50) + domain (50) = 100</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-xs text-zinc-500 mb-1">Sentiment</div>
-            <div className={`text-2xl font-bold ${
-              // Show n/a when no visibility (sentiment not applicable)
-              (scan.avg_visibility ?? 0) === 0 || scan.avg_sentiment === null ? 'text-zinc-600' :
-              scan.avg_sentiment > 60 ? 'text-emerald-400' :
-              scan.avg_sentiment < 40 ? 'text-red-400' : 'text-zinc-400'
-            }`}>
-              {(scan.avg_visibility ?? 0) > 0 && scan.avg_sentiment !== null ? `${scan.avg_sentiment}%` : 'n/a'}
+
+        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+          <CardHeader className="pb-0">
+            <div className="flex items-start justify-between">
+              <div className={`text-2xl font-bold ${
+                (scan.avg_visibility ?? 0) === 0 || scan.avg_sentiment === null ? 'text-zinc-600' : 'text-amber-400'
+              }`}>
+                {(scan.avg_visibility ?? 0) > 0 && scan.avg_sentiment !== null ? `${scan.avg_sentiment}%` : 'n/a'}
+              </div>
+              <Smile className="w-4 h-4 text-zinc-400" />
             </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="text-xs font-medium text-zinc-300 mb-1">Sentiment</div>
+            <p className="text-xs text-zinc-500">Only counted when brand is mentioned</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-xs text-zinc-500 mb-1">Ranking</div>
-            <div className={`text-2xl font-bold ${
-              (scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null && scan.avg_ranking > 0 
-                ? 'text-yellow-400' : 'text-zinc-600'
-            }`}>
-              {(scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null && scan.avg_ranking > 0 
-                ? `${scan.avg_ranking}%` : 'n/a'}
+
+        <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+          <CardHeader className="pb-0">
+            <div className="flex items-start justify-between">
+              <div className={`text-2xl font-bold ${
+                calculatedRanking !== null ? 'text-pink-400' : 'text-zinc-600'
+              }`}>
+                {calculatedRanking !== null ? `${calculatedRanking}%` : 'n/a'}
+              </div>
+              <TrendingUp className="w-4 h-4 text-zinc-400" />
             </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="text-xs font-medium text-zinc-300 mb-1">Ranking</div>
+            <p className="text-xs text-zinc-500">Only counted when brand is in list</p>
           </CardContent>
         </Card>
       </div>
