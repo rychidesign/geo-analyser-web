@@ -568,12 +568,15 @@ function analyzeResponse(
     }
     
     // Pattern 4: Comma-separated lists after keywords
-    // e.g., "jako jsou Datart, Alza, CZC" or "include: Brand, Other"
+    // e.g., "jako Alza, CZC, Datart" or "include: Brand, Other"
     if (rankingScore < 100) {
       const listKeywords = [
-        ':', 'jsou', 'are', 'include', 'like', 'such as', 
-        'například', 'např\\.', 'e\\.g\\.', 'patří', 'nabízejí',
-        'doporučuji', 'recommend', 'try', 'check out', 'visit'
+        // Czech keywords
+        'jako', 'jsou', 'například', 'např\\.', 'patří', 'nabízejí', 'nabízí',
+        'doporučuji', 'doporučujeme', 'zkuste', 'vyzkoušejte', 'třeba',
+        // English keywords  
+        ':', 'are', 'include', 'includes', 'like', 'such as', 'e\\.g\\.',
+        'recommend', 'try', 'check out', 'visit', 'consider', 'offers'
       ]
       const keywordPattern = listKeywords.join('|')
       const listRegex = new RegExp(`(?:${keywordPattern})\\s*([^.!?\\n]+)`, 'gi')
