@@ -86,18 +86,22 @@ Return ONLY a JSON object with this exact structure (no explanation):
   
   const metrics = JSON.parse(jsonContent)
   
-  // Sentiment is null when visibility is 0
+  // Enforce consistency: when visibility = 0, sentiment = null and recommendation = 0
   const visibilityScore = Math.min(100, Math.max(0, metrics.visibility_score || 0))
   const sentimentScore = visibilityScore > 0 && metrics.sentiment_score !== null
     ? Math.min(100, Math.max(0, metrics.sentiment_score))
     : null
+  // Recommendation is 0 when brand not mentioned (visibility = 0)
+  const recommendationScore = visibilityScore > 0 
+    ? Math.min(100, Math.max(0, metrics.recommendation_score || 0))
+    : 0
   
   return {
     metrics: {
       visibility_score: visibilityScore,
       sentiment_score: sentimentScore,
       ranking_score: Math.min(100, Math.max(0, metrics.ranking_score || 0)),
-      recommendation_score: Math.min(100, Math.max(0, metrics.recommendation_score || 0)),
+      recommendation_score: recommendationScore,
     },
     cost: {
       provider,
