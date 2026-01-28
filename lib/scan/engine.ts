@@ -496,6 +496,8 @@ function analyzeResponse(
 
   // Ranking Score (0-100): Position in list (1st = 100, 2nd = 80, etc.)
   let rankingScore = 0
+  const positionScores = [100, 80, 60, 40, 20] // 1st, 2nd, 3rd, 4th, 5th+
+  
   for (const brand of brandVariations) {
     const escapedBrand = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     
@@ -515,8 +517,28 @@ function analyzeResponse(
       }
     }
     
-    // Pattern 1b: Items with colon at start of lines (Brand.cz:, Brand:)
-    if (rankingScore === 0) {
+    // Pattern 2: Parenthetical lists (Brand1, Brand2, Brand3) - common in Czech
+    // e.g., "prodejny (Alza, Czc, Datart)"
+    if (rankingScore < 100) {
+      const parenListRegex = /\(([^)]+)\)/g
+      let match
+      while ((match = parenListRegex.exec(content)) !== null) {
+        const listContent = match[1]
+        // Check if this looks like a list (has commas)
+        if (listContent.includes(',')) {
+          const items = listContent.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 0)
+          for (let i = 0; i < Math.min(items.length, 5); i++) {
+            if (new RegExp(escapedBrand, 'i').test(items[i])) {
+              rankingScore = Math.max(rankingScore, positionScores[i])
+              break
+            }
+          }
+        }
+      }
+    }
+    
+    // Pattern 3: Items with colon at start of lines (Brand.cz:, Brand:)
+    if (rankingScore < 100) {
       const lines = content.split('\n')
       const brandLines: number[] = []
       
@@ -540,35 +562,22 @@ function analyzeResponse(
         
         const position = allColonLines.indexOf(brandLines[0]) + 1
         if (position > 0) {
-          const scores = [100, 80, 60, 40, 20]
-          rankingScore = Math.max(rankingScore, scores[Math.min(position - 1, 4)] || 0)
+          rankingScore = Math.max(rankingScore, positionScores[Math.min(position - 1, 4)] || 0)
         }
       }
     }
     
-    // Pattern 2: Comma/semicolon separated lists (Brand1, Brand2, Brand3)
-    // Check if brand appears first in a comma-separated list
+    // Pattern 4: Comma-separated lists after keywords
+    // e.g., "jako jsou Datart, Alza, CZC" or "include: Brand, Other"
     if (rankingScore < 100) {
-      // Match patterns like "retailers: Brand, Other, Other" or "Brand, Other, Other"
-      const listPatterns = [
-        // Brand is first in comma-separated list (possibly after a colon)
-        new RegExp(`(?::|jsou|are|include|like|such as|například|např\\.|e\\.g\\.)\\s*${escapedBrand}\\s*[,;]`, 'i'),
-        // Brand is first item followed by comma and other items
-        new RegExp(`${escapedBrand}\\s*[,;]\\s*[A-Z][a-zA-Z.]+\\s*[,;]`, 'i'),
+      const listKeywords = [
+        ':', 'jsou', 'are', 'include', 'like', 'such as', 
+        'například', 'např\\.', 'e\\.g\\.', 'patří', 'nabízejí',
+        'doporučuji', 'recommend', 'try', 'check out', 'visit'
       ]
+      const keywordPattern = listKeywords.join('|')
+      const listRegex = new RegExp(`(?:${keywordPattern})\\s*([^.!?\\n]+)`, 'gi')
       
-      for (const regex of listPatterns) {
-        if (regex.test(content)) {
-          rankingScore = Math.max(rankingScore, 100)
-          break
-        }
-      }
-    }
-    
-    // Pattern 3: Check position in any comma-separated list
-    if (rankingScore < 100) {
-      // Find all comma-separated lists and check brand position
-      const listRegex = /(?::|jsou|are|include|like|such as|například|např\.|e\.g\.)\s*([^.!?\n]+)/gi
       let match
       while ((match = listRegex.exec(content)) !== null) {
         const listContent = match[1]
@@ -576,8 +585,29 @@ function analyzeResponse(
         
         for (let i = 0; i < Math.min(items.length, 5); i++) {
           if (new RegExp(escapedBrand, 'i').test(items[i])) {
-            const positionScore = [100, 80, 60, 40, 20][i]
-            rankingScore = Math.max(rankingScore, positionScore)
+            rankingScore = Math.max(rankingScore, positionScores[i])
+            break
+          }
+        }
+      }
+    }
+    
+    // Pattern 5: Simple comma list with brand (fallback)
+    // e.g., "Alza, CZC, Datart" at start of sentence or after common words
+    if (rankingScore < 100) {
+      // Look for brand in any comma-separated sequence of capitalized words
+      const simpleListRegex = new RegExp(
+        `(?:^|[.!?]\\s+|\\n)\\s*([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][a-záčďéěíňóřšťúůýž.]*(?:\\s*[,;]\\s*[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][a-záčďéěíňóřšťúůýž.]*)+)`,
+        'gm'
+      )
+      let match
+      while ((match = simpleListRegex.exec(content)) !== null) {
+        const listContent = match[1]
+        const items = listContent.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 0)
+        
+        for (let i = 0; i < Math.min(items.length, 5); i++) {
+          if (new RegExp(escapedBrand, 'i').test(items[i])) {
+            rankingScore = Math.max(rankingScore, positionScores[i])
             break
           }
         }
