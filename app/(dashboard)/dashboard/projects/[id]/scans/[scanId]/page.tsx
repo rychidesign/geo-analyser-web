@@ -221,20 +221,13 @@ export default function ScanResultsPage() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
-            <div className="text-xs text-zinc-500 mb-1">Citation</div>
-            <div className={`text-2xl font-bold ${(scan.avg_citation ?? 0) > 0 ? 'text-blue-400' : 'text-zinc-600'}`}>
-              {scan.avg_citation ?? 0}%
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4 text-center">
             <div className="text-xs text-zinc-500 mb-1">Ranking</div>
             <div className={`text-2xl font-bold ${
-              (scan.avg_visibility ?? 0) === 0 || scan.avg_ranking === null ? 'text-zinc-600' :
-              scan.avg_ranking > 0 ? 'text-yellow-400' : 'text-zinc-600'
+              (scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null && scan.avg_ranking > 0 
+                ? 'text-yellow-400' : 'text-zinc-600'
             }`}>
-              {(scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null ? `${scan.avg_ranking}%` : 'n/a'}
+              {(scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null && scan.avg_ranking > 0 
+                ? `${scan.avg_ranking}%` : 'n/a'}
             </div>
           </CardContent>
         </Card>
@@ -335,10 +328,11 @@ export default function ScanResultsPage() {
                               <div className="text-center">
                                 <div className="text-xs text-zinc-500 mb-1">Ranking</div>
                                 <div className={`text-lg font-bold ${
-                                  metrics.visibility_score === 0 ? 'text-zinc-600' :
-                                  metrics.ranking_score > 0 ? 'text-yellow-400' : 'text-zinc-600'
+                                  metrics.visibility_score > 0 && metrics.ranking_score > 0 
+                                    ? 'text-yellow-400' : 'text-zinc-600'
                                 }`}>
-                                  {metrics.visibility_score > 0 ? `${metrics.ranking_score}%` : 'n/a'}
+                                  {metrics.visibility_score > 0 && metrics.ranking_score > 0 
+                                    ? `${metrics.ranking_score}%` : 'n/a'}
                                 </div>
                               </div>
                               <div className="text-center">

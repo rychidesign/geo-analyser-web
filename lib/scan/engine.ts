@@ -441,12 +441,14 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
     totalVisibility += metrics.visibility_score
     totalRecommendation += metrics.recommendation_score
     
-    // Only include sentiment and ranking when visibility > 0
-    if (metrics.visibility_score > 0) {
-      if (metrics.sentiment_score !== null) {
-        totalSentiment += metrics.sentiment_score
-        sentimentCount++
-      }
+    // Only include sentiment when visibility > 0
+    if (metrics.visibility_score > 0 && metrics.sentiment_score !== null) {
+      totalSentiment += metrics.sentiment_score
+      sentimentCount++
+    }
+    
+    // Only include ranking when brand is actually in a list (ranking > 0)
+    if (metrics.visibility_score > 0 && metrics.ranking_score > 0) {
       totalRanking += metrics.ranking_score
       rankingCount++
     }

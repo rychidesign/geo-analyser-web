@@ -93,16 +93,16 @@ export async function GET(
       dailyData[dateKey].overall += scan.overall_score || 0
       dailyData[dateKey].visibility += scan.avg_visibility || 0
       
-      // Only include sentiment and ranking if scan had visibility > 0
-      if (scan.avg_visibility && scan.avg_visibility > 0) {
-        if (scan.avg_sentiment !== null) {
-          dailyData[dateKey].sentimentSum += scan.avg_sentiment
-          dailyData[dateKey].sentimentCount += 1
-        }
-        if (scan.avg_ranking !== null) {
-          dailyData[dateKey].rankingSum += scan.avg_ranking
-          dailyData[dateKey].rankingCount += 1
-        }
+      // Only include sentiment if scan had visibility > 0
+      if (scan.avg_visibility && scan.avg_visibility > 0 && scan.avg_sentiment !== null) {
+        dailyData[dateKey].sentimentSum += scan.avg_sentiment
+        dailyData[dateKey].sentimentCount += 1
+      }
+      
+      // Only include ranking if scan had rankings (avg_ranking > 0)
+      if (scan.avg_visibility && scan.avg_visibility > 0 && scan.avg_ranking !== null && scan.avg_ranking > 0) {
+        dailyData[dateKey].rankingSum += scan.avg_ranking
+        dailyData[dateKey].rankingCount += 1
       }
     }
 

@@ -201,10 +201,10 @@ export default function ProjectPage() {
       return Math.round(scansWithVisibility.reduce((sum, s) => sum + (s.avg_sentiment || 0), 0) / scansWithVisibility.length)
     })(),
     ranking: (() => {
-      // Only average ranking from scans where brand was mentioned (visibility > 0)
-      const scansWithVisibility = completedScans.filter(s => (s.avg_visibility || 0) > 0 && s.avg_ranking !== null)
-      if (scansWithVisibility.length === 0) return null  // n/a when no visibility
-      return Math.round(scansWithVisibility.reduce((sum, s) => sum + (s.avg_ranking || 0), 0) / scansWithVisibility.length)
+      // Only average ranking from scans where brand was in a list (ranking > 0)
+      const scansWithRanking = completedScans.filter(s => (s.avg_visibility || 0) > 0 && s.avg_ranking !== null && s.avg_ranking > 0)
+      if (scansWithRanking.length === 0) return null  // n/a when not in any lists
+      return Math.round(scansWithRanking.reduce((sum, s) => sum + (s.avg_ranking || 0), 0) / scansWithRanking.length)
     })(),
   } : null
 
@@ -537,7 +537,7 @@ export default function ProjectPage() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Award className="w-3.5 h-3.5" />
-                              {(scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null ? `${scan.avg_ranking}%` : 'n/a'}
+                              {(scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null && scan.avg_ranking > 0 ? `${scan.avg_ranking}%` : 'n/a'}
                             </span>
                           </div>
                           {/* Mobile: Cost on second row right */}
