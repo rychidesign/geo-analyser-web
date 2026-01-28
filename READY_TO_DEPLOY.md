@@ -15,7 +15,7 @@ GEO Analyser je nyní plně funkční webová aplikace připravená k nasazení 
 - ✅ Real-time monitoring běžících scanů
 - ✅ Multi-projekt scanning (hromadné spouštění)
 - ✅ 5 klíčových metrik: Visibility, Sentiment, Citation, Ranking, Overall
-- ✅ AI i Regex evaluace výsledků
+- ✅ AI evaluace výsledků
 - ✅ Historické sledování s grafy
 - ✅ Timezone podpora (nastavitelný časový pás)
 - ✅ Cost tracking (náklady po providerech a modelech)
@@ -173,7 +173,6 @@ Aplikace je připravena pro produkční použití:
 
 3. **Optimalizace nákladů**
    - Používejte levnější modely kde je to možné
-   - Regex evaluace místo AI (zdarma)
    - Scheduled scans místo real-time
    - Batch processing pro více projektů
 

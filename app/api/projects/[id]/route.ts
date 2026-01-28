@@ -53,7 +53,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       'name', 
       'domain', 
       'language',
-      'evaluation_method',
       'brand_variations',
       'target_keywords',
       'scheduled_scan_enabled', 

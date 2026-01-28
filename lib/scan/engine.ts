@@ -78,7 +78,7 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
       project_id: config.projectId,
       user_id: config.userId,
       status: 'running',
-      evaluation_method: config.project.evaluation_method || 'regex',
+      evaluation_method: 'ai',
       total_cost_usd: 0,
       total_input_tokens: 0,
       total_output_tokens: 0,
@@ -92,44 +92,43 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
     throw new Error(`Failed to create scan: ${scanError?.message}`)
   }
 
-  // Get evaluation settings if using AI evaluation
+  // Get AI evaluation settings
   let evaluationModel: string | null = null
   let evaluationApiKey: string | null = null
   
-  if (config.project.evaluation_method === 'ai') {
-    const { data: helperSettings } = await supabase
+  const { data: helperSettings } = await supabase
+    .from('user_settings')
+    .select('*')
+    .eq('user_id', config.userId)
+    .eq('provider', '_helpers')
+    .single()
+  
+  evaluationModel = helperSettings?.encrypted_api_key || null // evaluation_model stored here
+  
+  if (evaluationModel) {
+    // Get API key for evaluation model's provider
+    const getProviderFromModel = (model: string): LLMProvider => {
+      if (model.startsWith('gpt')) return 'openai'
+      if (model.startsWith('claude')) return 'anthropic'
+      if (model.startsWith('gemini')) return 'google'
+      return 'openai'
+    }
+    
+    const evalProvider = getProviderFromModel(evaluationModel)
+    const { data: providerSettings } = await supabase
       .from('user_settings')
-      .select('*')
+      .select('encrypted_api_key')
       .eq('user_id', config.userId)
-      .eq('provider', '_helpers')
+      .eq('provider', evalProvider)
       .single()
     
-    evaluationModel = helperSettings?.encrypted_api_key || null // evaluation_model stored here
+    evaluationApiKey = providerSettings?.encrypted_api_key || null
     
-    if (evaluationModel) {
-      // Get API key for evaluation model's provider
-      const getProviderFromModel = (model: string): LLMProvider => {
-        if (model.startsWith('gpt')) return 'openai'
-        if (model.startsWith('claude')) return 'anthropic'
-        if (model.startsWith('gemini')) return 'google'
-        return 'openai'
-      }
-      
-      const evalProvider = getProviderFromModel(evaluationModel)
-      const { data: providerSettings } = await supabase
-        .from('user_settings')
-        .select('encrypted_api_key')
-        .eq('user_id', config.userId)
-        .eq('provider', evalProvider)
-        .single()
-      
-      evaluationApiKey = providerSettings?.encrypted_api_key || null
-      
-      if (!evaluationApiKey) {
-        console.warn(`No API key for evaluation model provider ${evalProvider}, falling back to regex`)
-        evaluationModel = null
-      }
+    if (!evaluationApiKey) {
+      throw new Error(`No API key configured for evaluation model provider: ${evalProvider}`)
     }
+  } else {
+    throw new Error('No evaluation model configured. Please set an evaluation model in Settings.')
   }
 
   let totalCost = 0
@@ -181,33 +180,20 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
             query.query_text
           )
 
-          // Analyze the response for brand mentions
-          let metrics: ScanMetrics
-          let evaluationCost: { provider: LLMProvider; model: string; inputTokens: number; outputTokens: number; costUsd: number } | null = null
+          // Analyze the response using AI evaluation
+          const evalResult = await analyzeResponseWithAI(
+            response.content,
+            config.project.brand_variations,
+            config.project.domain,
+            evaluationModel!,
+            evaluationApiKey!
+          )
+          const metrics = evalResult.metrics
+          const evaluationCost = evalResult.cost
           
-          if (config.project.evaluation_method === 'ai' && evaluationModel && evaluationApiKey) {
-            // Use AI evaluation
-            const evalResult = await analyzeResponseWithAI(
-              response.content,
-              config.project.brand_variations,
-              config.project.domain,
-              evaluationModel,
-              evaluationApiKey
-            )
-            metrics = evalResult.metrics
-            evaluationCost = evalResult.cost
-            
-            // Track evaluation costs
-            if (evaluationCost.costUsd > 0) {
-              evaluationCosts.push(evaluationCost)
-            }
-          } else {
-            // Use regex evaluation (default/fallback)
-            metrics = analyzeResponse(
-              response.content,
-              config.project.brand_variations,
-              config.project.domain
-            )
+          // Track evaluation costs
+          if (evaluationCost.costUsd > 0) {
+            evaluationCosts.push(evaluationCost)
           }
 
           // Save result
@@ -419,221 +405,8 @@ Return ONLY a JSON object with this exact structure (no explanation):
       }
     }
   } catch (error) {
-    console.error('AI evaluation failed, falling back to regex:', error)
-    // Fall back to regex evaluation if AI fails
-    return {
-      metrics: analyzeResponse(content, brandVariations, domain),
-      cost: {
-        provider: 'openai' as LLMProvider,
-        model: evaluationModel,
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: 0,
-      }
-    }
-  }
-}
-
-// Helper: Extract sentences containing brand/domain mentions for context-aware sentiment
-function extractBrandContext(content: string, brandVariations: string[], domain: string): string {
-  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0)
-  const relevantSentences: string[] = []
-  
-  for (const sentence of sentences) {
-    const lowerSentence = sentence.toLowerCase()
-    const hasBrand = brandVariations.some(brand => lowerSentence.includes(brand.toLowerCase()))
-    const hasDomain = lowerSentence.includes(domain.toLowerCase())
-    
-    if (hasBrand || hasDomain) {
-      relevantSentences.push(sentence)
-    }
-  }
-  
-  return relevantSentences.join(' ').toLowerCase()
-}
-
-// Regex-based evaluation (fast & free)
-function analyzeResponse(
-  content: string,
-  brandVariations: string[],
-  domain: string
-): ScanMetrics {
-  const lowerContent = content.toLowerCase()
-  
-  // Check presence
-  const brandMentioned = brandVariations.some(brand => 
-    lowerContent.includes(brand.toLowerCase())
-  )
-  const domainMentioned = lowerContent.includes(domain.toLowerCase())
-
-  // Combined Visibility Score: brand (50) + domain (50) = 100
-  let visibilityScore = 0
-  if (brandMentioned) visibilityScore += 50
-  if (domainMentioned) visibilityScore += 50
-
-  // Sentiment Score (0-100 or null): Only calculated if visibility > 0
-  // If visibility = 0, sentiment = null (not applicable/n/a)
-  // 50 = neutral, 0 = negative, 100 = positive
-  let sentimentScore: number | null = null
-  if (visibilityScore > 0) {
-    // Extract only sentences that mention the brand or domain
-    const brandContext = extractBrandContext(content, brandVariations, domain)
-    
-    const positiveWords = ['best', 'excellent', 'great', 'recommend', 'top', 'leading', 'popular', 'trusted', 'reliable', 'effective', 'amazing', 'outstanding', 'superior', 'innovative']
-    const negativeWords = ['worst', 'bad', 'avoid', 'poor', 'unreliable', 'expensive', 'limited', 'lacking', 'disappointing', 'inferior', 'problematic']
-    
-    let sentimentRaw = 0
-    for (const word of positiveWords) {
-      if (brandContext.includes(word)) sentimentRaw += 1
-    }
-    for (const word of negativeWords) {
-      if (brandContext.includes(word)) sentimentRaw -= 1
-    }
-    // Convert to 0-100 scale (clamp between -5 and 5, then scale)
-    sentimentRaw = Math.max(-5, Math.min(5, sentimentRaw))
-    sentimentScore = Math.round(50 + (sentimentRaw * 10))
-  }
-
-  // Ranking Score (0-100): Position in list (1st = 100, 2nd = 80, etc.)
-  let rankingScore = 0
-  const positionScores = [100, 80, 60, 40, 20] // 1st, 2nd, 3rd, 4th, 5th+
-  
-  for (const brand of brandVariations) {
-    const escapedBrand = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    
-    // Pattern 1: Numbered lists (1. Brand, 2) Brand, etc.)
-    const numberedPatterns = [
-      { regex: new RegExp(`1[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 100 },
-      { regex: new RegExp(`2[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 80 },
-      { regex: new RegExp(`3[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 60 },
-      { regex: new RegExp(`4[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 40 },
-      { regex: new RegExp(`5[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 20 },
-    ]
-    
-    for (const { regex, score } of numberedPatterns) {
-      if (regex.test(content)) {
-        rankingScore = Math.max(rankingScore, score)
-        break
-      }
-    }
-    
-    // Pattern 2: Parenthetical lists (Brand1, Brand2, Brand3) - common in Czech
-    // e.g., "prodejny (Alza, Czc, Datart)"
-    if (rankingScore < 100) {
-      const parenListRegex = /\(([^)]+)\)/g
-      let match
-      while ((match = parenListRegex.exec(content)) !== null) {
-        const listContent = match[1]
-        // Check if this looks like a list (has commas)
-        if (listContent.includes(',')) {
-          const items = listContent.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 0)
-          for (let i = 0; i < Math.min(items.length, 5); i++) {
-            if (new RegExp(escapedBrand, 'i').test(items[i])) {
-              rankingScore = Math.max(rankingScore, positionScores[i])
-              break
-            }
-          }
-        }
-      }
-    }
-    
-    // Pattern 3: Items with colon at start of lines (Brand.cz:, Brand:)
-    if (rankingScore < 100) {
-      const lines = content.split('\n')
-      const brandLines: number[] = []
-      
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim()
-        // Check if line starts with brand name followed by colon
-        const colonPattern = new RegExp(`^[^:]*${escapedBrand}[^:]*:`, 'i')
-        if (colonPattern.test(line)) {
-          brandLines.push(i)
-        }
-      }
-      
-      if (brandLines.length > 0) {
-        // Find position among all colon-style items
-        const allColonLines: number[] = []
-        for (let i = 0; i < lines.length; i++) {
-          if (/^[^:]+:/.test(lines[i].trim())) {
-            allColonLines.push(i)
-          }
-        }
-        
-        const position = allColonLines.indexOf(brandLines[0]) + 1
-        if (position > 0) {
-          rankingScore = Math.max(rankingScore, positionScores[Math.min(position - 1, 4)] || 0)
-        }
-      }
-    }
-    
-    // Pattern 4: Comma-separated lists after keywords
-    // e.g., "jako Alza, CZC, Datart" or "include: Brand, Other"
-    if (rankingScore < 100) {
-      const listKeywords = [
-        // Czech keywords
-        'jako', 'jsou', 'například', 'např\\.', 'patří', 'nabízejí', 'nabízí',
-        'doporučuji', 'doporučujeme', 'zkuste', 'vyzkoušejte', 'třeba',
-        // English keywords  
-        ':', 'are', 'include', 'includes', 'like', 'such as', 'e\\.g\\.',
-        'recommend', 'try', 'check out', 'visit', 'consider', 'offers'
-      ]
-      const keywordPattern = listKeywords.join('|')
-      const listRegex = new RegExp(`(?:${keywordPattern})\\s*([^.!?\\n]+)`, 'gi')
-      
-      let match
-      while ((match = listRegex.exec(content)) !== null) {
-        const listContent = match[1]
-        const items = listContent.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 0)
-        
-        for (let i = 0; i < Math.min(items.length, 5); i++) {
-          if (new RegExp(escapedBrand, 'i').test(items[i])) {
-            rankingScore = Math.max(rankingScore, positionScores[i])
-            break
-          }
-        }
-      }
-    }
-    
-    // Pattern 5: Simple comma list with brand (fallback)
-    // e.g., "Alza, CZC, Datart" at start of sentence or after common words
-    if (rankingScore < 100) {
-      // Look for brand in any comma-separated sequence of capitalized words
-      const simpleListRegex = new RegExp(
-        `(?:^|[.!?]\\s+|\\n)\\s*([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][a-záčďéěíňóřšťúůýž.]*(?:\\s*[,;]\\s*[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][a-záčďéěíňóřšťúůýž.]*)+)`,
-        'gm'
-      )
-      let match
-      while ((match = simpleListRegex.exec(content)) !== null) {
-        const listContent = match[1]
-        const items = listContent.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 0)
-        
-        for (let i = 0; i < Math.min(items.length, 5); i++) {
-          if (new RegExp(escapedBrand, 'i').test(items[i])) {
-            rankingScore = Math.max(rankingScore, positionScores[i])
-            break
-          }
-        }
-      }
-    }
-    
-    if (rankingScore === 100) break
-  }
-
-  // Recommendation Score (0-100): Weighted combination
-  let recommendationScore = 0
-  if (brandMentioned && sentimentScore !== null) {
-    recommendationScore += visibilityScore * 0.35     // 35% weight (includes domain)
-    recommendationScore += (sentimentScore - 50) * 0.35 // 35% weight (centered at 50)
-    recommendationScore += rankingScore * 0.3         // 30% weight
-    recommendationScore = Math.min(100, Math.max(0, Math.round(recommendationScore + 30))) // Base of 30 if visible
-  }
-
-  return {
-    visibility_score: visibilityScore,
-    sentiment_score: sentimentScore,
-    ranking_score: rankingScore,
-    recommendation_score: recommendationScore,
+    console.error('AI evaluation failed:', error)
+    throw new Error(`AI evaluation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

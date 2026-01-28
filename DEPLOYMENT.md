@@ -347,7 +347,7 @@ As your usage grows:
 
 3. **Optimize Costs**:
    - Use cheaper models for query generation (e.g., GPT-5 Nano)
-   - Use cheaper models for evaluation (or regex-based evaluation)
+   - Use cheaper models for AI evaluation
    - Batch scans instead of real-time
    - Set reasonable scan schedules (daily, not hourly)
 

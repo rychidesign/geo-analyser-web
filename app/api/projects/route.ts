@@ -38,7 +38,6 @@ export async function POST(request: NextRequest) {
       name, 
       domain, 
       language, 
-      evaluation_method,
       brand_variations,
       target_keywords,
       llm_models  // Frontend sends as llm_models
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       domain: domain.trim().toLowerCase().replace(/^https?:\/\//, ''),
       language: language || 'en',
-      evaluation_method: evaluation_method || 'ai',
+      evaluation_method: 'ai' as const,
       brand_variations: brand_variations.filter((b: string) => b.trim()),
       target_keywords: target_keywords?.filter((k: string) => k.trim()) || [],
       selected_models: llm_models,  // Database column is selected_models

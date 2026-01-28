@@ -14,6 +14,7 @@ import {
   Plus,
   X
 } from 'lucide-react'
+// Note: Evaluation method removed - always uses AI evaluation
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,7 +56,6 @@ export default function ProjectSettingsPage() {
   const [name, setName] = useState('')
   const [domain, setDomain] = useState('')
   const [language, setLanguage] = useState('en')
-  const [evaluationMethod, setEvaluationMethod] = useState<'ai' | 'regex'>('ai')
   const [brandVariations, setBrandVariations] = useState<string[]>([])
   const [keywords, setKeywords] = useState<string[]>([])
   const [newBrand, setNewBrand] = useState('')
@@ -97,7 +97,6 @@ export default function ProjectSettingsPage() {
         setName(data.name)
         setDomain(data.domain)
         setLanguage(data.language || 'en')
-        setEvaluationMethod(data.evaluation_method || 'ai')
         setBrandVariations(data.brand_variations || [])
         setKeywords(data.target_keywords || [])
         setSelectedModels(data.selected_models || ['gpt-5-mini'])
@@ -151,7 +150,6 @@ export default function ProjectSettingsPage() {
           name,
           domain,
           language,
-          evaluation_method: evaluationMethod,
           brand_variations: brandVariations,
           target_keywords: keywords,
           llm_models: selectedModels,
@@ -351,30 +349,6 @@ export default function ProjectSettingsPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="evaluationMethod">Evaluation Method</Label>
-                <Select value={evaluationMethod} onValueChange={(value: 'ai' | 'regex') => setEvaluationMethod(value)}>
-                  <SelectTrigger id="evaluationMethod">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ai">
-                      <div className="flex items-center gap-2">
-                        <Cpu className="w-4 h-4" />
-                        <span>AI Evaluation (recommended)</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="regex">
-                      <div className="flex items-center gap-2">
-                        <span>Regex (fast & free)</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  AI uses LLM for better sentiment analysis. Regex is faster and free but simpler.
-                </p>
-              </div>
             </CardContent>
           </Card>
 

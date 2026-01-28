@@ -23,7 +23,7 @@ export interface Project {
   scheduled_scan_enabled: boolean
   scheduled_scan_day: number | null // 0-6 (Sunday-Saturday)
   last_scheduled_scan_at: string | null
-  evaluation_method: 'ai' | 'regex' // Method for evaluating scan results
+  evaluation_method?: 'ai' | 'regex' // DEPRECATED - always uses AI evaluation now
   created_at: string
   updated_at: string
 }
@@ -43,7 +43,7 @@ export interface Scan {
   project_id: string
   user_id: string
   status: 'running' | 'completed' | 'failed' | 'stopped'
-  evaluation_method: 'ai' | 'regex'   // Evaluation method used for this scan
+  evaluation_method?: 'ai' | 'regex'  // DEPRECATED - always uses AI evaluation now
   
   // Aggregated metrics (0-100, averaged from all results)
   overall_score: number | null        // Weighted average of all metrics

@@ -41,7 +41,6 @@ export default function NewProjectPage() {
   const [name, setName] = useState('')
   const [domain, setDomain] = useState('')
   const [language, setLanguage] = useState('en')
-  const [evaluationMethod, setEvaluationMethod] = useState<'ai' | 'regex'>('ai')
   const [brandVariations, setBrandVariations] = useState<string[]>([])
   const [keywords, setKeywords] = useState<string[]>([])
   const [newBrand, setNewBrand] = useState('')
@@ -149,7 +148,6 @@ export default function NewProjectPage() {
           name,
           domain,
           language,
-          evaluation_method: evaluationMethod,
           brand_variations: brandVariations,
           target_keywords: keywords,
           llm_models: selectedModels,
@@ -338,30 +336,6 @@ export default function NewProjectPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="evaluationMethod">Evaluation Method</Label>
-                <Select value={evaluationMethod} onValueChange={(value: 'ai' | 'regex') => setEvaluationMethod(value)} disabled={loading}>
-                  <SelectTrigger id="evaluationMethod">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ai">
-                      <div className="flex items-center gap-2">
-                        <Cpu className="w-4 h-4" />
-                        <span>AI Evaluation (recommended)</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="regex">
-                      <div className="flex items-center gap-2">
-                        <span>Regex (fast & free)</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  AI uses LLM for better sentiment analysis. Regex is faster and free but simpler.
-                </p>
-              </div>
             </CardContent>
           </Card>
 

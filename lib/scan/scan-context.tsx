@@ -43,107 +43,7 @@ export function useScan() {
   return context
 }
 
-// Helper: Extract sentences containing brand/domain mentions
-function extractBrandContext(response: string, brandVariations: string[], domain: string): string {
-  const sentences = response.split(/[.!?]+/).filter(s => s.trim().length > 0)
-  const relevantSentences: string[] = []
-  
-  for (const sentence of sentences) {
-    const lowerSentence = sentence.toLowerCase()
-    const hasBrand = brandVariations.some(brand => lowerSentence.includes(brand.toLowerCase()))
-    const hasDomain = lowerSentence.includes(domain.toLowerCase())
-    
-    if (hasBrand || hasDomain) {
-      relevantSentences.push(sentence)
-    }
-  }
-  
-  return relevantSentences.join(' ').toLowerCase()
-}
-
-// Helper: Analyze response using regex (same as before, but inline)
-function analyzeResponse(response: string, brandVariations: string[], domain: string) {
-  const lowerResponse = response.toLowerCase()
-  
-  const brandMentioned = brandVariations.some(brand => 
-    lowerResponse.includes(brand.toLowerCase())
-  )
-  
-  const domainMentioned = lowerResponse.includes(domain.toLowerCase())
-  
-  // Combined visibility score: brand (50) + domain (50) = 100
-  let visibilityScore = 0
-  if (brandMentioned) visibilityScore += 50
-  if (domainMentioned) visibilityScore += 50
-  
-  // Only calculate sentiment if visibility > 0 (brand or domain mentioned)
-  // If visibility = 0, sentiment = 0 (not applicable)
-  let sentimentScore = 0
-  if (visibilityScore > 0) {
-    // Extract only sentences that mention the brand or domain
-    const brandContext = extractBrandContext(response, brandVariations, domain)
-    
-    const positiveWords = ['recommend', 'best', 'excellent', 'great', 'top', 'leading', 'premier', 'popular', 'trusted', 'quality', 'reliable', 'amazing', 'outstanding']
-    const negativeWords = ['avoid', 'worst', 'poor', 'bad', 'disappointing', 'unreliable', 'expensive', 'lacking', 'limited', 'inferior']
-    
-    const positiveCount = positiveWords.filter(word => brandContext.includes(word)).length
-    const negativeCount = negativeWords.filter(word => brandContext.includes(word)).length
-    
-    // Calculate sentiment (0-100, 50 = neutral)
-    sentimentScore = 50
-    if (positiveCount > 0) sentimentScore += Math.min(positiveCount * 10, 40)
-    if (negativeCount > 0) sentimentScore -= Math.min(negativeCount * 10, 40)
-  }
-  
-  // Calculate ranking score (position in lists)
-  let rankingScore = 0
-  if (brandMentioned) {
-    for (const brand of brandVariations) {
-      const escapedBrand = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      
-      // Check numbered lists
-      const patterns = [
-        { regex: new RegExp(`1[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 100 },
-        { regex: new RegExp(`2[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 80 },
-        { regex: new RegExp(`3[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 60 },
-        { regex: new RegExp(`4[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 40 },
-        { regex: new RegExp(`5[.):\\s]+[^\\n]*${escapedBrand}`, 'i'), score: 20 },
-      ]
-      
-      for (const { regex, score } of patterns) {
-        if (regex.test(response)) {
-          rankingScore = Math.max(rankingScore, score)
-          break
-        }
-      }
-      
-      if (rankingScore === 100) break
-    }
-    
-    // If mentioned but not in a list, give base score
-    if (rankingScore === 0 && brandMentioned) {
-      rankingScore = 30
-    }
-  }
-  
-  // Calculate recommendation score (weighted combination)
-  let recommendationScore = 0
-  if (brandMentioned) {
-    recommendationScore = Math.round(
-      visibilityScore * 0.35 + // visibility weight (includes domain)
-      ((sentimentScore - 50) * 2) * 0.35 + // sentiment weight (normalized)
-      rankingScore * 0.3 // ranking weight
-    )
-    recommendationScore = Math.min(100, Math.max(0, recommendationScore))
-  }
-  
-  return {
-    visibility_score: visibilityScore,
-    sentiment_score: sentimentScore,
-    ranking_score: rankingScore,
-    recommendation_score: recommendationScore,
-  }
-}
+// Note: All evaluation now uses AI via /api/scan/evaluate endpoint
 
 interface ScanProviderProps {
   children: React.ReactNode
@@ -197,7 +97,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
         throw new Error(errorData.error || `Failed to start scan (${startRes.status})`)
       }
       
-      const { scanId, queries, models, totalOperations, brandVariations, domain, evaluationMethod } = await startRes.json()
+      const { scanId, queries, models, totalOperations, brandVariations, domain } = await startRes.json()
       
       // Update job with scan ID and progress info
       setJobs(prev => prev.map(job => 
@@ -246,40 +146,27 @@ export function ScanProvider({ children }: ScanProviderProps) {
             
             const llmResult = await llmRes.json()
             
-            // Analyze response - use AI or regex based on project settings
+            // Analyze response using AI evaluation
             let metrics
             let evaluationCost = null
             
-            if (evaluationMethod === 'ai') {
-              // Use AI evaluation
-              try {
-                const evalRes = await fetch('/api/scan/evaluate', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    content: llmResult.content,
-                    brandVariations,
-                    domain,
-                  }),
-                  signal: abortController.signal,
-                })
-                
-                if (evalRes.ok) {
-                  const evalResult = await evalRes.json()
-                  metrics = evalResult.metrics
-                  evaluationCost = evalResult.evaluation
-                } else {
-                  // Fallback to regex if AI fails
-                  console.warn('[Scan] AI evaluation failed, using regex fallback')
-                  metrics = analyzeResponse(llmResult.content, brandVariations, domain)
-                }
-              } catch (evalError) {
-                console.warn('[Scan] AI evaluation error, using regex fallback:', evalError)
-                metrics = analyzeResponse(llmResult.content, brandVariations, domain)
-              }
+            const evalRes = await fetch('/api/scan/evaluate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                content: llmResult.content,
+                brandVariations,
+                domain,
+              }),
+              signal: abortController.signal,
+            })
+            
+            if (evalRes.ok) {
+              const evalResult = await evalRes.json()
+              metrics = evalResult.metrics
+              evaluationCost = evalResult.evaluation
             } else {
-              // Use regex evaluation (default)
-              metrics = analyzeResponse(llmResult.content, brandVariations, domain)
+              throw new Error('AI evaluation failed')
             }
             
             // Save result

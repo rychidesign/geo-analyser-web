@@ -59,7 +59,7 @@ export async function POST(
         project_id: projectId,
         user_id: user.id,
         status: 'running',
-        evaluation_method: project.evaluation_method || 'regex',
+        evaluation_method: 'ai',
         total_cost_usd: 0,
         total_input_tokens: 0,
         total_output_tokens: 0,
@@ -80,7 +80,6 @@ export async function POST(
       totalOperations,
       queries: queries.map(q => ({ id: q.id, query_text: q.query_text })),
       models: selectedModels,
-      evaluationMethod: project.evaluation_method || 'regex',
       brandVariations: project.brand_variations || [],
       domain: project.domain,
     })
