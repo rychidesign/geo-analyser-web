@@ -346,8 +346,8 @@ Evaluate the response on these metrics (return scores 0-100):
    - Domain mentioned = 50 points
    - Both = 100, one = 50, neither = 0
 
-2. **Sentiment Score** (0-100): What's the sentiment toward the brand?
-   - If visibility_score is 0 (neither brand nor domain mentioned), return 0
+2. **Sentiment Score** (0-100 or null): What's the sentiment toward the brand?
+   - If visibility_score is 0 (neither brand nor domain mentioned), return null
    - Otherwise, analyze ONLY sentences where brand or domain is mentioned
    - 10 = very negative, 50 = neutral, 90 = very positive
 
@@ -365,7 +365,7 @@ Evaluate the response on these metrics (return scores 0-100):
 Return ONLY a JSON object with this exact structure (no explanation):
 {
   "visibility_score": <number>,
-  "sentiment_score": <number>,
+  "sentiment_score": <number or null>,
   "ranking_score": <number>,
   "recommendation_score": <number>
 }`
@@ -397,10 +397,16 @@ Return ONLY a JSON object with this exact structure (no explanation):
     
     const metrics = JSON.parse(jsonContent)
     
+    // Sentiment is null when visibility is 0
+    const visibilityScore = Math.min(100, Math.max(0, metrics.visibility_score || 0))
+    const sentimentScore = visibilityScore > 0 && metrics.sentiment_score !== null
+      ? Math.min(100, Math.max(0, metrics.sentiment_score))
+      : null
+    
     return {
       metrics: {
-        visibility_score: Math.min(100, Math.max(0, metrics.visibility_score || 0)),
-        sentiment_score: Math.min(100, Math.max(0, metrics.sentiment_score || 0)),
+        visibility_score: visibilityScore,
+        sentiment_score: sentimentScore,
         ranking_score: Math.min(100, Math.max(0, metrics.ranking_score || 0)),
         recommendation_score: Math.min(100, Math.max(0, metrics.recommendation_score || 0)),
       },
@@ -465,10 +471,10 @@ function analyzeResponse(
   if (brandMentioned) visibilityScore += 50
   if (domainMentioned) visibilityScore += 50
 
-  // Sentiment Score (0-100): Only calculated if visibility > 0
-  // If visibility = 0, sentiment = 0 (not applicable)
+  // Sentiment Score (0-100 or null): Only calculated if visibility > 0
+  // If visibility = 0, sentiment = null (not applicable/n/a)
   // 50 = neutral, 0 = negative, 100 = positive
-  let sentimentScore = 0
+  let sentimentScore: number | null = null
   if (visibilityScore > 0) {
     // Extract only sentences that mention the brand or domain
     const brandContext = extractBrandContext(content, brandVariations, domain)
@@ -583,7 +589,7 @@ function analyzeResponse(
 
   // Recommendation Score (0-100): Weighted combination
   let recommendationScore = 0
-  if (brandMentioned) {
+  if (brandMentioned && sentimentScore !== null) {
     recommendationScore += visibilityScore * 0.35     // 35% weight (includes domain)
     recommendationScore += (sentimentScore - 50) * 0.35 // 35% weight (centered at 50)
     recommendationScore += rankingScore * 0.3         // 30% weight
@@ -601,19 +607,19 @@ function analyzeResponse(
 interface AggregatedMetrics {
   overall: number
   visibility: number
-  sentiment: number
+  sentiment: number | null  // null when no visibility (n/a)
   ranking: number
 }
 
 function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
   if (results.length === 0) {
-    return { overall: 0, visibility: 0, sentiment: 0, ranking: 0 }
+    return { overall: 0, visibility: 0, sentiment: null, ranking: 0 }
   }
 
   const metricsResults = results.filter(r => r.metrics_json)
   
   if (metricsResults.length === 0) {
-    return { overall: 0, visibility: 0, sentiment: 0, ranking: 0 }
+    return { overall: 0, visibility: 0, sentiment: null, ranking: 0 }
   }
 
   // Calculate averages
@@ -629,8 +635,8 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
     totalRanking += metrics.ranking_score
     totalRecommendation += metrics.recommendation_score
     
-    // Only include sentiment in average if brand was mentioned (visibility > 0)
-    if (metrics.visibility_score > 0 && metrics.sentiment_score > 0) {
+    // Only include sentiment in average if it exists (visibility > 0)
+    if (metrics.sentiment_score !== null) {
       totalSentiment += metrics.sentiment_score
       sentimentCount++
     }
@@ -640,7 +646,7 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
 
   return {
     visibility: Math.round(totalVisibility / count),
-    sentiment: sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : 0,
+    sentiment: sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : null,
     ranking: Math.round(totalRanking / count),
     overall: Math.round(totalRecommendation / count),
   }

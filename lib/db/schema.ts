@@ -80,11 +80,11 @@ export interface ScanResult {
 }
 
 export interface ScanMetrics {
-  visibility_score: number      // 0-100: Brand + domain presence (100=both, 70=brand only, 30=domain only, 0=neither)
-  sentiment_score: number       // 0-100: Sentiment when brand mentioned (50 = neutral, 0 = not mentioned)
-  ranking_score: number         // 0-100: Position in list (higher = better)
-  recommendation_score: number  // 0-100: Overall recommendation strength
-  citation_score?: number       // DEPRECATED - kept for backward compatibility with old data
+  visibility_score: number           // 0-100: Brand + domain presence (100=both, 50=brand or domain only, 0=neither)
+  sentiment_score: number | null     // 0-100: Sentiment when brand mentioned (50 = neutral, null = not mentioned/n/a)
+  ranking_score: number              // 0-100: Position in list (higher = better)
+  recommendation_score: number       // 0-100: Overall recommendation strength
+  citation_score?: number            // DEPRECATED - kept for backward compatibility with old data
 }
 
 export interface MonthlyUsage {

@@ -51,7 +51,8 @@ export async function GET(
       scans: number
       overall: number
       visibility: number
-      sentiment: number
+      sentimentSum: number
+      sentimentCount: number  // Track scans with sentiment (visibility > 0)
       ranking: number
     }> = {}
 
@@ -80,7 +81,8 @@ export async function GET(
           scans: 0,
           overall: 0,
           visibility: 0,
-          sentiment: 0,
+          sentimentSum: 0,
+          sentimentCount: 0,
           ranking: 0,
         }
       }
@@ -88,8 +90,13 @@ export async function GET(
       dailyData[dateKey].scans += 1
       dailyData[dateKey].overall += scan.overall_score || 0
       dailyData[dateKey].visibility += scan.avg_visibility || 0
-      dailyData[dateKey].sentiment += scan.avg_sentiment || 0
       dailyData[dateKey].ranking += scan.avg_ranking || 0
+      
+      // Only include sentiment if scan had visibility (sentiment is not null)
+      if (scan.avg_visibility && scan.avg_visibility > 0 && scan.avg_sentiment !== null) {
+        dailyData[dateKey].sentimentSum += scan.avg_sentiment
+        dailyData[dateKey].sentimentCount += 1
+      }
     }
 
     console.log(`[History] Grouped into ${Object.keys(dailyData).length} days:`, Object.keys(dailyData).sort())
@@ -101,7 +108,8 @@ export async function GET(
         scans: day.scans,
         overall: Math.round(day.overall / day.scans),
         visibility: Math.round(day.visibility / day.scans),
-        sentiment: Math.round(day.sentiment / day.scans),
+        // Sentiment is null if no scans with visibility > 0
+        sentiment: day.sentimentCount > 0 ? Math.round(day.sentimentSum / day.sentimentCount) : null,
         ranking: Math.round(day.ranking / day.scans),
       }))
       .sort((a, b) => a.date.localeCompare(b.date)) // Sort by date ascending

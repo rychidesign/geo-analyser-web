@@ -17,7 +17,7 @@ interface HistoryData {
   scans: number
   overall: number
   visibility: number
-  sentiment: number
+  sentiment: number | null  // null when no visibility (n/a)
   ranking: number
 }
 
@@ -177,8 +177,8 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
                 padding: '8px 12px',
               }}
               labelStyle={{ color: '#71717a', fontSize: '11px', marginBottom: '4px' }}
-              formatter={(value: number, name: string) => [
-                `${value}%`,
+              formatter={(value, name) => [
+                value !== null && value !== undefined ? `${value}%` : 'n/a',
                 METRIC_LABELS[name as keyof typeof METRIC_LABELS] || name,
               ]}
             />
@@ -210,6 +210,7 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
                 strokeWidth={1.5}
                 dot={false}
                 activeDot={{ r: 3, strokeWidth: 0 }}
+                connectNulls={false}
               />
             )}
             {visibleMetrics.ranking && (
