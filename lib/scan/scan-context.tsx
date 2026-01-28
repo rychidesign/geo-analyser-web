@@ -265,14 +265,19 @@ export function ScanProvider({ children }: ScanProviderProps) {
   const startScan = useCallback(async (projectId: string, projectName: string) => {
     // Check if already has active job - use functional update to get current state
     setJobs(prev => {
-      const existingJob = prev.find(
+      const existingActiveJob = prev.find(
         job => job.projectId === projectId && ['queued', 'running'].includes(job.status)
       )
       
-      if (existingJob) {
+      if (existingActiveJob) {
         console.log(`[Scan] Project ${projectId} already has an active scan`)
         return prev // Return unchanged
       }
+      
+      // Remove any completed/failed/cancelled jobs for this project before adding new one
+      const filteredJobs = prev.filter(
+        job => job.projectId !== projectId || ['queued', 'running'].includes(job.status)
+      )
       
       // Add to queue
       const newJob: ScanJob = {
@@ -283,7 +288,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
         progress: { current: 0, total: 0 },
       }
       
-      return [...prev, newJob]
+      return [...filteredJobs, newJob]
     })
   }, [])
   

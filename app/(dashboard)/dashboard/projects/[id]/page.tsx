@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { 
@@ -41,8 +41,11 @@ export default function ProjectPage() {
   const params = useParams()
   const router = useRouter()
   const projectId = params.id as string
-  const { startScan, cancelScan, getJobForProject, hasActiveJob } = useScan()
+  const { startScan, cancelScan, getJobForProject, hasActiveJob, clearJob } = useScan()
   const { showSuccess, showError, showInfo } = useToast()
+  
+  // Track which job IDs we've already shown notifications for
+  const notifiedJobsRef = useRef<Set<string>>(new Set())
 
   const [project, setProject] = useState<Project | null>(null)
   const [queries, setQueries] = useState<ProjectQuery[]>([])
@@ -99,15 +102,28 @@ export default function ProjectPage() {
     setVisibleQueriesCount(prev => prev + 5)
   }
 
-  // Reload project when scan completes
+  // Reload project when scan completes - only notify once per job
   useEffect(() => {
-    if (currentJob?.status === 'completed') {
+    if (!currentJob?.id) return
+    
+    // Skip if we've already notified for this job
+    if (notifiedJobsRef.current.has(currentJob.id)) return
+    
+    if (currentJob.status === 'completed') {
+      notifiedJobsRef.current.add(currentJob.id)
       loadProject()
       showSuccess('Scan completed successfully!')
-    } else if (currentJob?.status === 'failed') {
+      // Clear the job from context after a short delay
+      setTimeout(() => clearJob(projectId), 2000)
+    } else if (currentJob.status === 'failed') {
+      notifiedJobsRef.current.add(currentJob.id)
       showError(`Scan failed: ${currentJob.error}`)
+      setTimeout(() => clearJob(projectId), 5000)
+    } else if (currentJob.status === 'cancelled') {
+      notifiedJobsRef.current.add(currentJob.id)
+      setTimeout(() => clearJob(projectId), 2000)
     }
-  }, [currentJob?.status])
+  }, [currentJob?.id, currentJob?.status, projectId, clearJob])
 
   const loadProject = async () => {
     try {
