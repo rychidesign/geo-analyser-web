@@ -14,7 +14,6 @@ import {
   Eye,
   EyeOff,
   TrendingUp,
-  Award,
   Cpu,
   Trash2,
   Target,
@@ -317,19 +316,25 @@ export default function ScanResultsPage() {
                           {metrics && (
                             <>
                               <span className={`flex items-center gap-1 text-sm ${
-                                metrics.visibility_score > 0 ? 'text-emerald-400' : 'text-zinc-500'
+                                metrics.visibility_score > 0 ? 'text-blue-400' : 'text-zinc-500'
                               }`}>
                                 {metrics.visibility_score > 0 ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                 {metrics.visibility_score}%
                               </span>
                               <span className={`flex items-center gap-1 text-sm ${
-                                metrics.visibility_score > 0 && metrics.ranking_score > 0 ? 'text-yellow-400' : 'text-zinc-500'
+                                metrics.visibility_score > 0 && metrics.sentiment_score !== null ? 'text-amber-400' : 'text-zinc-500'
                               }`}>
-                                <Award className="w-4 h-4" />
+                                <Smile className="w-4 h-4" />
+                                {metrics.visibility_score > 0 && metrics.sentiment_score !== null ? `${metrics.sentiment_score}%` : 'n/a'}
+                              </span>
+                              <span className={`flex items-center gap-1 text-sm ${
+                                metrics.visibility_score > 0 && metrics.ranking_score > 0 ? 'text-pink-400' : 'text-zinc-500'
+                              }`}>
+                                <TrendingUp className="w-4 h-4" />
                                 {metrics.visibility_score > 0 && metrics.ranking_score > 0 ? `${metrics.ranking_score}%` : 'n/a'}
                               </span>
                               <span className="flex items-center gap-1 text-sm text-emerald-400 font-medium">
-                                <TrendingUp className="w-4 h-4" />
+                                <Target className="w-4 h-4" />
                                 {metrics.recommendation_score}%
                               </span>
                             </>
@@ -348,17 +353,14 @@ export default function ScanResultsPage() {
                             <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-zinc-900 rounded-lg">
                               <div className="text-center">
                                 <div className="text-xs text-zinc-500 mb-1">Visibility</div>
-                                <div className={`text-lg font-bold ${metrics.visibility_score > 0 ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                                <div className={`text-lg font-bold ${metrics.visibility_score > 0 ? 'text-blue-400' : 'text-zinc-600'}`}>
                                   {metrics.visibility_score}%
                                 </div>
                               </div>
                               <div className="text-center">
                                 <div className="text-xs text-zinc-500 mb-1">Sentiment</div>
                                 <div className={`text-lg font-bold ${
-                                  // Show n/a when no visibility (sentiment not applicable)
-                                  metrics.visibility_score === 0 || metrics.sentiment_score === null ? 'text-zinc-600' :
-                                  metrics.sentiment_score > 60 ? 'text-emerald-400' :
-                                  metrics.sentiment_score < 40 ? 'text-red-400' : 'text-zinc-400'
+                                  metrics.visibility_score === 0 || metrics.sentiment_score === null ? 'text-zinc-600' : 'text-amber-400'
                                 }`}>
                                   {metrics.visibility_score > 0 && metrics.sentiment_score !== null ? `${metrics.sentiment_score}%` : 'n/a'}
                                 </div>
@@ -367,7 +369,7 @@ export default function ScanResultsPage() {
                                 <div className="text-xs text-zinc-500 mb-1">Ranking</div>
                                 <div className={`text-lg font-bold ${
                                   metrics.visibility_score > 0 && metrics.ranking_score > 0 
-                                    ? 'text-yellow-400' : 'text-zinc-600'
+                                    ? 'text-pink-400' : 'text-zinc-600'
                                 }`}>
                                   {metrics.visibility_score > 0 && metrics.ranking_score > 0 
                                     ? `${metrics.ranking_score}%` : 'n/a'}

@@ -20,8 +20,6 @@ import {
   Smile,
   TrendingUp,
   Target,
-  Award,
-  ThumbsUp,
   Cpu,
   Trash2,
   Square,
@@ -542,17 +540,17 @@ export default function ProjectPage() {
                       {/* Mobile Second Row / Desktop Middle Section: Metrics */}
                       {scan.status === 'completed' && (
                         <div className="flex items-center justify-between lg:justify-start lg:flex-1">
-                          <div className="flex items-center gap-4 text-xs text-zinc-500">
-                            <span className="flex items-center gap-1">
+                          <div className="flex items-center gap-4 text-xs">
+                            <span className={`flex items-center gap-1 ${(scan.avg_visibility ?? 0) > 0 ? 'text-blue-400' : 'text-zinc-500'}`}>
                               {(scan.avg_visibility ?? 0) > 0 ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                               {scan.avg_visibility ?? 0}%
                             </span>
-                            <span className="flex items-center gap-1">
-                              <ThumbsUp className="w-3.5 h-3.5" />
+                            <span className={`flex items-center gap-1 ${(scan.avg_visibility ?? 0) > 0 && scan.avg_sentiment !== null ? 'text-amber-400' : 'text-zinc-500'}`}>
+                              <Smile className="w-3.5 h-3.5" />
                               {(scan.avg_visibility ?? 0) > 0 && scan.avg_sentiment !== null ? `${scan.avg_sentiment}%` : 'n/a'}
                             </span>
-                            <span className="flex items-center gap-1">
-                              <Award className="w-3.5 h-3.5" />
+                            <span className={`flex items-center gap-1 ${(scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null && scan.avg_ranking > 0 ? 'text-pink-400' : 'text-zinc-500'}`}>
+                              <TrendingUp className="w-3.5 h-3.5" />
                               {(scan.avg_visibility ?? 0) > 0 && scan.avg_ranking !== null && scan.avg_ranking > 0 ? `${scan.avg_ranking}%` : 'n/a'}
                             </span>
                           </div>
