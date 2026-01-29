@@ -258,7 +258,6 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
         overall_score: aggregatedMetrics.overall,
         avg_visibility: aggregatedMetrics.visibility,
         avg_sentiment: aggregatedMetrics.sentiment,
-        avg_citation: 0, // Deprecated - visibility now includes domain
         avg_ranking: aggregatedMetrics.ranking,
         total_cost_usd: totalCost,
         total_input_tokens: totalInputTokens,

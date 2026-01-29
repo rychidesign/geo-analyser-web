@@ -523,11 +523,9 @@ export default function ProjectPage() {
                           }`}>
                             {scan.status === 'stopped' ? 'Stopped' : scan.status}
                           </span>
-                          {scan.evaluation_method === 'ai' && (
-                            <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
-                              <Cpu className="w-3 h-3" /> AI
-                            </Badge>
-                          )}
+                          <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
+                            <Cpu className="w-3 h-3" /> AI
+                          </Badge>
                         </div>
                         {/* Mobile: Overall Score on first row right */}
                         {scan.status === 'completed' && scan.overall_score !== null && (

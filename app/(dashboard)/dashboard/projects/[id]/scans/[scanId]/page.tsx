@@ -171,11 +171,9 @@ export default function ScanResultsPage() {
                    <Loader2 className="w-4 h-4 animate-spin" />}
                   {scan.status === 'stopped' ? 'Stopped' : scan.status}
                 </span>
-                {scan.evaluation_method === 'ai' && (
-                  <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
-                    <Cpu className="w-3 h-3" /> AI Evaluated
-                  </Badge>
-                )}
+                <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
+                  <Cpu className="w-3 h-3" /> AI Evaluated
+                </Badge>
               </div>
             </div>
           </div>

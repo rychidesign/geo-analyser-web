@@ -49,7 +49,7 @@ export interface Scan {
   overall_score: number | null        // Weighted average of all metrics
   avg_visibility: number | null       // % of results where brand was mentioned
   avg_sentiment: number | null        // Average sentiment score
-  avg_citation: number | null         // % of results with domain citation
+  avg_citation?: number | null        // DEPRECATED - kept for backward compatibility
   avg_ranking: number | null          // Average ranking score
   
   // Cost tracking
@@ -98,24 +98,6 @@ export interface MonthlyUsage {
   total_output_tokens: number
   total_cost_usd: number
   scan_count: number
-}
-
-export interface ScanQueue {
-  id: string
-  user_id: string
-  project_id: string
-  scan_id: string | null
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
-  priority: number
-  progress_current: number
-  progress_total: number
-  progress_message: string | null
-  is_scheduled: boolean
-  scheduled_for: string | null
-  created_at: string
-  started_at: string | null
-  completed_at: string | null
-  error_message: string | null
 }
 
 // Type for inserting new records (without auto-generated fields)

@@ -76,7 +76,6 @@ export async function POST(
     // Calculate final averages
     const avgVisibility = validResults > 0 ? Math.round(totalVisibility / validResults) : 0
     const avgSentiment = sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : null
-    const avgCitation = 0 // Deprecated
     const avgRanking = rankingCount > 0 ? Math.round(totalRanking / rankingCount) : null
     const overallScore = validResults > 0 ? Math.round(totalRecommendation / validResults) : 0
 
@@ -88,7 +87,6 @@ export async function POST(
         overall_score: overallScore,
         avg_visibility: avgVisibility,
         avg_sentiment: avgSentiment,
-        avg_citation: avgCitation,
         avg_ranking: avgRanking,
         completed_at: new Date().toISOString(),
       })
@@ -195,7 +193,6 @@ export async function POST(
         overallScore,
         avgVisibility,
         avgSentiment,
-        avgCitation,
         avgRanking,
       }
     })
