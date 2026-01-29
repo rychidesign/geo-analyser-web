@@ -88,14 +88,21 @@ export default function QueriesPage() {
   }
 
   const loadHelperSettings = async () => {
+    const DEFAULT_MODEL = 'gpt-5-mini'
     try {
       const res = await fetch('/api/settings/helpers')
       if (res.ok) {
         const data = await res.json()
-        setGenerationModel(data.query_generation_model || 'gpt-5-mini')
+        setGenerationModel(data.query_generation_model || DEFAULT_MODEL)
+      } else {
+        // Endpoint returned error - use fallback model
+        console.warn('Helper settings endpoint returned error, using default model')
+        setGenerationModel(DEFAULT_MODEL)
       }
     } catch (error) {
+      // Network or other error - use fallback model
       console.error('Error loading helper settings:', error)
+      setGenerationModel(DEFAULT_MODEL)
     } finally {
       setLoadingSettings(false)
     }
