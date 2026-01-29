@@ -42,34 +42,43 @@ export async function POST(
       .eq('scan_id', scanId)
 
     // Calculate aggregated metrics
-    let overallScore = 0
-    let avgVisibility = 0
-    let avgSentiment = 50 // Default neutral
-    let avgCitation = 0
-    let avgRanking = 0
+    let totalVisibility = 0
+    let totalSentiment = 0
+    let sentimentCount = 0  // Only count when visibility > 0
+    let totalRanking = 0
+    let rankingCount = 0    // Only count when ranking > 0 (brand in list)
+    let totalRecommendation = 0
     let validResults = 0
 
     if (results && results.length > 0) {
       for (const result of results) {
         if (result.metrics_json) {
           const metrics = result.metrics_json as any
-          avgVisibility += metrics.visibility_score || 0
-          avgSentiment += (metrics.sentiment_score || 50) - 50 // Adjust for averaging
-          avgCitation += metrics.citation_score || 0
-          avgRanking += metrics.ranking_score || 0
-          overallScore += metrics.recommendation_score || 0
+          totalVisibility += metrics.visibility_score || 0
+          totalRecommendation += metrics.recommendation_score || 0
           validResults++
+          
+          // Only include sentiment when visibility > 0
+          if ((metrics.visibility_score || 0) > 0 && metrics.sentiment_score !== null && metrics.sentiment_score !== undefined) {
+            totalSentiment += metrics.sentiment_score
+            sentimentCount++
+          }
+          
+          // Only include ranking when brand is actually in a list (ranking > 0)
+          if ((metrics.visibility_score || 0) > 0 && (metrics.ranking_score || 0) > 0) {
+            totalRanking += metrics.ranking_score
+            rankingCount++
+          }
         }
       }
-
-      if (validResults > 0) {
-        avgVisibility = Math.round(avgVisibility / validResults)
-        avgSentiment = Math.round(50 + (avgSentiment / validResults)) // Restore to 0-100 scale
-        avgCitation = Math.round(avgCitation / validResults)
-        avgRanking = Math.round(avgRanking / validResults)
-        overallScore = Math.round(overallScore / validResults)
-      }
     }
+
+    // Calculate final averages
+    const avgVisibility = validResults > 0 ? Math.round(totalVisibility / validResults) : 0
+    const avgSentiment = sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : null
+    const avgCitation = 0 // Deprecated
+    const avgRanking = rankingCount > 0 ? Math.round(totalRanking / rankingCount) : null
+    const overallScore = validResults > 0 ? Math.round(totalRecommendation / validResults) : 0
 
     // Update scan status and metrics
     const { error: updateError } = await supabase
