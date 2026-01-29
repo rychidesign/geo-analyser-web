@@ -16,7 +16,7 @@ CRITICAL RULES:
 2. Queries must be GENERIC industry questions where a brand MIGHT naturally be recommended
 3. The goal is to test if AI will organically mention the brand without being asked directly
 
-Generate exactly 5 diverse test queries. Make them sound HUMAN and CONVERSATIONAL:
+Generate exactly {count} diverse test queries. Make them sound HUMAN and CONVERSATIONAL:
 
 **SOUND LIKE A REAL PERSON:**
 - Use casual, everyday language (not corporate-speak)
@@ -55,6 +55,17 @@ export async function POST(
   try {
     const supabase = await createClient()
     const { id: projectId } = await params
+
+    // Parse request body for count
+    let count = 5
+    try {
+      const body = await request.json()
+      if (body.count && typeof body.count === 'number' && body.count >= 1 && body.count <= 20) {
+        count = body.count
+      }
+    } catch {
+      // If no body or invalid JSON, use default count of 5
+    }
 
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -118,6 +129,7 @@ export async function POST(
       .replace('{domain}', project.domain)
       .replace('{keywords}', project.target_keywords?.join(', ') || 'general')
       .replace('{language}', project.language || 'English')
+      .replace('{count}', count.toString())
 
     // Call LLM
     const response = await callLLM(
