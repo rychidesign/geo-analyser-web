@@ -13,26 +13,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Reset free tier limits if needed
-    await checkAndResetFreeTierLimits(user.id)
+    // Reset free tier limits if needed (don't fail if this errors)
+    try {
+      await checkAndResetFreeTierLimits(user.id)
+    } catch (resetError) {
+      console.warn('[Credits API] Failed to reset tier limits:', resetError)
+    }
 
     // Get credit info
     const credits = await getUserCreditInfo(user.id)
 
     if (!credits) {
+      console.error('[Credits API] getUserCreditInfo returned null for user:', user.id)
       return NextResponse.json({ error: 'Failed to fetch credit info' }, { status: 500 })
     }
 
-    // Get avatar URL from profile
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('avatar_url')
-      .eq('user_id', user.id)
-      .single()
+    // Get avatar URL from profile (don't fail if this errors)
+    let avatarUrl = null
+    try {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('avatar_url')
+        .eq('user_id', user.id)
+        .single()
+      avatarUrl = profile?.avatar_url || null
+    } catch (avatarError) {
+      console.warn('[Credits API] Failed to fetch avatar:', avatarError)
+    }
 
     return NextResponse.json({ 
       credits,
-      avatarUrl: profile?.avatar_url || null
+      avatarUrl
     })
   } catch (error: any) {
     console.error('[Credits API] Error:', error)
