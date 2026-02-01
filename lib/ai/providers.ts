@@ -10,7 +10,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 
 // Gateway configuration
 const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1'
-const GATEWAY_API_KEY = process.env.AI_GATEWAY_API_KEY
+const GATEWAY_API_KEY = process.env.VERCEL_AI_GATEWAY_SECRET_KEY || process.env.AI_GATEWAY_API_KEY
 
 // Direct API keys (fallback when Gateway is not configured)
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
