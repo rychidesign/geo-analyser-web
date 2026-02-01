@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
       scheduled_scan_enabled: scheduled_scan_enabled || false,
       scheduled_scan_day: scheduled_scan_enabled ? (scheduled_scan_day ?? 1) : null,
       last_scheduled_scan_at: null,
+      next_scheduled_scan_at: null,
       query_generation_model: query_generation_model || 'gpt-5-mini',
       evaluation_model: evaluation_model || 'gpt-5-mini',
       follow_up_enabled: follow_up_enabled || false,
