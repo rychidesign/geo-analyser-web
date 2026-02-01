@@ -219,8 +219,8 @@ export default function ProjectPage() {
   const completedScans = scans.filter(scan => scan.status === 'completed')
   const lastScan = completedScans[0]
 
-  // Check if any scan has follow-ups active
-  const hasAnyFollowUpScans = completedScans.some(s => s.follow_up_active)
+  // Check if follow-ups are enabled (either in project settings or any completed scan has them)
+  const hasFollowUpEnabled = project?.follow_up_enabled || completedScans.some(s => s.follow_up_active)
 
   // Calculate averages across ALL completed scans
   const avgMetrics = completedScans.length > 0 ? {
@@ -378,7 +378,7 @@ export default function ProjectPage() {
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Overall Score</div>
               <p className="text-xs text-zinc-500">
-                {hasAnyFollowUpScans 
+                {hasFollowUpEnabled 
                   ? 'Combined score including recommendation strength and persistence.'
                   : 'Combined brand recommendation score.'}
               </p>
@@ -401,7 +401,7 @@ export default function ProjectPage() {
           </Card>
 
           {/* Persistence - upsell card when follow-ups not enabled */}
-          {hasAnyFollowUpScans ? (
+          {hasFollowUpEnabled ? (
             <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
               <CardHeader className="pb-0">
                 <div className="flex items-start justify-between">
