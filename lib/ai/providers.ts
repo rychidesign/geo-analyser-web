@@ -10,22 +10,33 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 
 // Gateway configuration
 const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1'
-const GATEWAY_API_KEY = process.env.VERCEL_AI_GATEWAY_SECRET_KEY || process.env.AI_GATEWAY_API_KEY
+
+// Helper to get Gateway API key (checked at runtime, not module load)
+function getGatewayApiKey(): string | undefined {
+  return process.env.VERCEL_AI_GATEWAY_SECRET_KEY || process.env.AI_GATEWAY_API_KEY
+}
 
 // Direct API keys (fallback when Gateway is not configured)
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
-const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY
-const GROQ_API_KEY = process.env.GROQ_API_KEY
-const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY
+function getOpenAIKey(): string | undefined {
+  return process.env.OPENAI_API_KEY
+}
+function getAnthropicKey(): string | undefined {
+  return process.env.ANTHROPIC_API_KEY
+}
+function getGoogleKey(): string | undefined {
+  return process.env.GOOGLE_GENERATIVE_AI_API_KEY
+}
+function getGroqKey(): string | undefined {
+  return process.env.GROQ_API_KEY
+}
+function getPerplexityKey(): string | undefined {
+  return process.env.PERPLEXITY_API_KEY
+}
 
-// Determine which mode to use
-const USE_GATEWAY = !!GATEWAY_API_KEY
-
-if (USE_GATEWAY) {
-  console.log(`[AI] Using Vercel AI Gateway`)
-} else {
-  console.log(`[AI] Using direct API keys (no Gateway configured)`)
+// Check if Gateway is available (at runtime)
+function isGatewayAvailable(): boolean {
+  const key = getGatewayApiKey()
+  return !!key
 }
 
 // =====================================================
@@ -212,10 +223,13 @@ export function getProviderClient(modelId: string): { client: ReturnType<typeof 
     throw new Error(`Unknown model: ${modelId}`)
   }
   
+  const gatewayKey = getGatewayApiKey()
+  
   // Gateway mode - single client for all providers
-  if (USE_GATEWAY) {
+  if (gatewayKey) {
+    console.log(`[AI] Using Gateway for model: ${modelId}`)
     const gatewayClient = createOpenAI({
-      apiKey: GATEWAY_API_KEY!,
+      apiKey: gatewayKey,
       baseURL: GATEWAY_URL,
     })
     
@@ -241,67 +255,82 @@ export function getProviderClient(modelId: string): { client: ReturnType<typeof 
       'sonar-reasoning-pro': 'perplexity/sonar-reasoning-pro',
     }
     
+    const mappedModelId = gatewayModelMap[modelId] || `${model.provider}/${modelId}`
+    console.log(`[AI] Gateway model ID: ${mappedModelId}`)
+    
     return {
       client: gatewayClient,
-      modelId: gatewayModelMap[modelId] || `${model.provider}/${modelId}`,
+      modelId: mappedModelId,
     }
   }
   
+  console.log(`[AI] Using direct API for model: ${modelId} (provider: ${model.provider})`)
+  
   // Direct API mode - create provider-specific clients
   switch (model.provider) {
-    case 'openai':
-      if (!OPENAI_API_KEY) {
+    case 'openai': {
+      const apiKey = getOpenAIKey()
+      if (!apiKey) {
         throw new Error('OPENAI_API_KEY is not configured')
       }
       return {
-        client: createOpenAI({ apiKey: OPENAI_API_KEY }),
+        client: createOpenAI({ apiKey }),
         modelId: modelId,
       }
+    }
       
-    case 'anthropic':
-      if (!ANTHROPIC_API_KEY) {
+    case 'anthropic': {
+      const apiKey = getAnthropicKey()
+      if (!apiKey) {
         throw new Error('ANTHROPIC_API_KEY is not configured')
       }
       // Anthropic SDK returns different type, but we cast for simplicity
       return {
-        client: createAnthropic({ apiKey: ANTHROPIC_API_KEY }) as unknown as ReturnType<typeof createOpenAI>,
+        client: createAnthropic({ apiKey }) as unknown as ReturnType<typeof createOpenAI>,
         modelId: modelId,
       }
+    }
       
-    case 'google':
-      if (!GOOGLE_API_KEY) {
+    case 'google': {
+      const apiKey = getGoogleKey()
+      if (!apiKey) {
         throw new Error('GOOGLE_GENERATIVE_AI_API_KEY is not configured')
       }
       return {
-        client: createGoogleGenerativeAI({ apiKey: GOOGLE_API_KEY }) as unknown as ReturnType<typeof createOpenAI>,
+        client: createGoogleGenerativeAI({ apiKey }) as unknown as ReturnType<typeof createOpenAI>,
         modelId: modelId,
       }
+    }
       
-    case 'groq':
-      if (!GROQ_API_KEY) {
+    case 'groq': {
+      const apiKey = getGroqKey()
+      if (!apiKey) {
         throw new Error('GROQ_API_KEY is not configured. Groq requires Gateway or direct API key.')
       }
       // Groq is OpenAI-compatible
       return {
         client: createOpenAI({ 
-          apiKey: GROQ_API_KEY,
+          apiKey,
           baseURL: 'https://api.groq.com/openai/v1',
         }),
         modelId: modelId,
       }
+    }
       
-    case 'perplexity':
-      if (!PERPLEXITY_API_KEY) {
+    case 'perplexity': {
+      const apiKey = getPerplexityKey()
+      if (!apiKey) {
         throw new Error('PERPLEXITY_API_KEY is not configured. Perplexity requires Gateway or direct API key.')
       }
       // Perplexity is OpenAI-compatible
       return {
         client: createOpenAI({
-          apiKey: PERPLEXITY_API_KEY,
+          apiKey,
           baseURL: 'https://api.perplexity.ai',
         }),
         modelId: modelId,
       }
+    }
       
     default:
       throw new Error(`Unsupported provider: ${model.provider}`)
@@ -310,11 +339,12 @@ export function getProviderClient(modelId: string): { client: ReturnType<typeof 
 
 // Legacy exports for backward compatibility
 export function getGatewayClient() {
-  if (!GATEWAY_API_KEY) {
-    throw new Error('AI_GATEWAY_API_KEY is not configured')
+  const apiKey = getGatewayApiKey()
+  if (!apiKey) {
+    throw new Error('VERCEL_AI_GATEWAY_SECRET_KEY is not configured')
   }
   return createOpenAI({
-    apiKey: GATEWAY_API_KEY,
+    apiKey,
     baseURL: GATEWAY_URL,
   })
 }
