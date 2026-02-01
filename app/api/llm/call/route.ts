@@ -5,8 +5,10 @@ import { callGEOQuery, callAI, getModelInfo } from '@/lib/ai'
 export const runtime = 'edge'
 export const maxDuration = 60  // Increased timeout for LLM calls
 
-// Check if Gateway is configured
-const USE_GATEWAY = !!process.env.AI_GATEWAY_API_KEY
+// Check if Gateway is configured (check at runtime, not module load)
+function isGatewayEnabled(): boolean {
+  return !!process.env.VERCEL_AI_GATEWAY_SECRET_KEY
+}
 
 // System prompt for follow-up queries (avoid circular import issues)
 function getFollowUpSystemPrompt(language: string = 'en'): string {
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use Gateway mode (centralized API keys via Vercel AI Gateway)
-    if (USE_GATEWAY) {
+    if (isGatewayEnabled()) {
       const isFollowUp = conversationHistory && conversationHistory.length > 0
       console.log(`[LLM Proxy] Calling ${model} for user ${user.id}${isFollowUp ? ' (with conversation history)' : ''}`)
       
