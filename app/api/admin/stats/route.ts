@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { isAdmin } from '@/lib/credits/middleware'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/admin/stats - Get platform statistics (admin only)
  */

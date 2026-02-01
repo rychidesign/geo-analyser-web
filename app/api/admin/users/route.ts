@@ -4,6 +4,8 @@ import { requireAdmin, isAdmin } from '@/lib/credits/middleware'
 import { updateUserTier, addCredits, getUserProfile, usdToCents } from '@/lib/credits'
 import type { UserTier } from '@/lib/credits/types'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/admin/users - List all users (admin only)
  */

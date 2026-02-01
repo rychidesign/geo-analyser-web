@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getPricingConfigs, getUserProfile } from '@/lib/credits'
 import { getModelsForUser } from '@/lib/credits/middleware'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/credits/pricing - Get pricing information
  * 

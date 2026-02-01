@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getTransactionHistory } from '@/lib/credits'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/credits/transactions - Get user's transaction history
  */
