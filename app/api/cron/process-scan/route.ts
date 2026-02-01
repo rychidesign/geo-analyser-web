@@ -252,7 +252,7 @@ async function processClaimedScan(
 
   // Complete reservation
   if (reservationId && !['free-tier', 'test-account', 'admin-account'].includes(reservationId)) {
-    await consumeReservation(reservationId, result.actualCostCents)
+    await consumeReservation(reservationId, result.actualCostCents, scan.id)
   }
 
   // Update scan
