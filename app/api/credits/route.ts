@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
 
     // Get credit info
     const credits = await getUserCreditInfo(user.id)
+    console.log('[Credits API] Credits for user', user.id, ':', credits)
 
     if (!credits) {
       console.error('[Credits API] getUserCreditInfo returned null for user:', user.id)
