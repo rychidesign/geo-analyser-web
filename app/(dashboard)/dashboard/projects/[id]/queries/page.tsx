@@ -65,7 +65,6 @@ export default function QueriesPage() {
   const generationModels = React.useMemo(() => {
     if (pricing.length === 0) {
       return AVAILABLE_MODELS
-        .filter(m => m.isActive)
         .map(m => ({
           value: m.id,
           label: m.name,

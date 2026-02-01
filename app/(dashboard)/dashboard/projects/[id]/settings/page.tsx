@@ -120,7 +120,6 @@ export default function ProjectSettingsPage() {
       // Fallback to AVAILABLE_MODELS if pricing not loaded yet
       return {
         models: AVAILABLE_MODELS
-          .filter(m => m.isActive)
           .map(m => ({
             value: m.id,
             label: m.name,
