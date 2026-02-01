@@ -28,6 +28,7 @@ export * from './types'
  * Get user profile, creating one if it doesn't exist
  */
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  console.log('[getUserProfile] Fetching profile for user:', userId)
   const supabase = await createClient()
   
   const { data, error } = await supabase
@@ -36,13 +37,16 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     .eq('user_id', userId)
     .single()
   
+  console.log('[getUserProfile] Query result - data:', data, 'error:', error)
+  
   if (error && error.code !== 'PGRST116') { // PGRST116 = not found
-    console.error('Error fetching user profile:', error)
+    console.error('[getUserProfile] Error fetching user profile:', error)
     return null
   }
   
   // If no profile exists, create one (shouldn't happen with trigger, but just in case)
   if (!data) {
+    console.log('[getUserProfile] No profile found, creating new one')
     const { data: newProfile, error: createError } = await supabase
       .from('user_profiles')
       .insert({ user_id: userId, tier: 'free' })
@@ -50,13 +54,15 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
       .single()
     
     if (createError) {
-      console.error('Error creating user profile:', createError)
+      console.error('[getUserProfile] Error creating user profile:', createError)
       return null
     }
     
+    console.log('[getUserProfile] Created new profile:', newProfile)
     return newProfile
   }
   
+  console.log('[getUserProfile] Returning existing profile with tier:', data.tier)
   return data
 }
 
