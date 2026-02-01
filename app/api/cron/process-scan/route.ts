@@ -335,6 +335,11 @@ async function processScan(
           if (!evalResult.metrics) continue
 
           const modelInfo = getModelInfo(modelId)
+          if (!modelInfo) {
+            console.log(`[Worker ${workerId}] Unknown model: ${modelId}, skipping`)
+            continue
+          }
+          
           const queryCostCents = await calculateDynamicCost(modelId, response.inputTokens, response.outputTokens)
           const evalCostCents = await calculateDynamicCost(evaluationModel, evalResult.inputTokens, evalResult.outputTokens)
 
