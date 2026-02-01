@@ -13,6 +13,10 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.31",
+    "@ai-sdk/google": "^3.0.18",
+    "@ai-sdk/groq": "^3.0.19",
+    "@ai-sdk/openai": "^3.0.23",
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/generative-ai": "^0.24.1",
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -27,9 +31,11 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/ssr": "^0.1.0",
     "@supabase/supabase-js": "^2.39.3",
+    "ai": "^6.0.62",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.29.3",
+    "groq-sdk": "^0.37.0",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.309.0",

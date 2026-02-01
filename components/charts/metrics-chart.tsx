@@ -19,6 +19,7 @@ interface HistoryData {
   visibility: number
   sentiment: number | null  // null when no visibility (n/a)
   ranking: number | null    // null when no visibility (n/a)
+  persistence: number | null // null when no follow-up queries
 }
 
 interface MetricsChartProps {
@@ -29,6 +30,7 @@ interface MetricsChartProps {
 const METRIC_COLORS = {
   overall: '#10b981',      // Emerald-500
   visibility: '#3b82f6',   // Blue-500
+  persistence: '#06b6d4',  // Cyan-500
   sentiment: '#f59e0b',    // Amber-500
   ranking: '#ec4899',      // Pink-500
 }
@@ -36,6 +38,7 @@ const METRIC_COLORS = {
 const METRIC_LABELS = {
   overall: 'Overall Score',
   visibility: 'Visibility',
+  persistence: 'Persistence',
   sentiment: 'Sentiment',
   ranking: 'Ranking',
 }
@@ -44,9 +47,11 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
   const [data, setData] = useState<HistoryData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [followUpEnabled, setFollowUpEnabled] = useState(false)
   const [visibleMetrics, setVisibleMetrics] = useState({
     overall: true,
     visibility: true,
+    persistence: true,
     sentiment: true,
     ranking: true,
   })
@@ -66,6 +71,7 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
         const result = await response.json()
         console.log('History data received:', result)
         setData(result.history || [])
+        setFollowUpEnabled(result.followUpEnabled || false)
       } catch (err) {
         console.error('Error fetching history:', err)
         setError(err instanceof Error ? err.message : 'Failed to load history')
@@ -122,26 +128,31 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
     <div className="space-y-6">
       {/* Legend / Metric toggles - Minimalist */}
       <div className="flex flex-wrap gap-2">
-        {(Object.keys(METRIC_LABELS) as (keyof typeof METRIC_LABELS)[]).map(metric => (
-          <button
-            key={metric}
-            onClick={() => toggleMetric(metric)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-all ${
-              visibleMetrics[metric]
-                ? 'text-zinc-100'
-                : 'text-zinc-600'
-            }`}
-          >
-            <span
-              className="w-2 h-2 rounded-full transition-opacity"
-              style={{ 
-                backgroundColor: METRIC_COLORS[metric],
-                opacity: visibleMetrics[metric] ? 1 : 0.3
-              }}
-            />
-            {METRIC_LABELS[metric]}
-          </button>
-        ))}
+        {(Object.keys(METRIC_LABELS) as (keyof typeof METRIC_LABELS)[]).map(metric => {
+          // Skip persistence if follow-ups are not enabled
+          if (metric === 'persistence' && !followUpEnabled) return null
+          
+          return (
+            <button
+              key={metric}
+              onClick={() => toggleMetric(metric)}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-all ${
+                visibleMetrics[metric]
+                  ? 'text-zinc-100'
+                  : 'text-zinc-600'
+              }`}
+            >
+              <span
+                className="w-2 h-2 rounded-full transition-opacity"
+                style={{ 
+                  backgroundColor: METRIC_COLORS[metric],
+                  opacity: visibleMetrics[metric] ? 1 : 0.3
+                }}
+              />
+              {METRIC_LABELS[metric]}
+            </button>
+          )
+        })}
       </div>
 
       {/* Chart */}
@@ -177,10 +188,14 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
                 padding: '8px 12px',
               }}
               labelStyle={{ color: '#71717a', fontSize: '11px', marginBottom: '4px' }}
-              formatter={(value, name) => [
-                value !== null && value !== undefined ? `${value}%` : 'n/a',
-                METRIC_LABELS[name as keyof typeof METRIC_LABELS] || name,
-              ]}
+              formatter={(value, name) => {
+                if (value === null || value === undefined) return ['n/a', METRIC_LABELS[name as keyof typeof METRIC_LABELS] || name]
+                // Show overall with one decimal place
+                const formattedValue = name === 'overall' 
+                  ? `${Number(value).toFixed(1)}%` 
+                  : `${value}%`
+                return [formattedValue, METRIC_LABELS[name as keyof typeof METRIC_LABELS] || name]
+              }}
             />
             {visibleMetrics.overall && (
               <Line
@@ -200,6 +215,17 @@ export function MetricsChart({ projectId, days = 30 }: MetricsChartProps) {
                 strokeWidth={1.5}
                 dot={false}
                 activeDot={{ r: 3, strokeWidth: 0 }}
+              />
+            )}
+            {followUpEnabled && visibleMetrics.persistence && (
+              <Line
+                type="monotone"
+                dataKey="persistence"
+                stroke={METRIC_COLORS.persistence}
+                strokeWidth={1.5}
+                dot={false}
+                activeDot={{ r: 3, strokeWidth: 0 }}
+                connectNulls={false}
               />
             )}
             {visibleMetrics.sentiment && (

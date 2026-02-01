@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { LLMConfig, LLMResponse } from './types'
+import type { LLMConfig, LLMResponse, ConversationMessage } from './types'
 
 // Map our model IDs to actual Anthropic API model names
 // Using aliases that automatically point to the latest model versions
@@ -21,7 +21,8 @@ const API_TIMEOUT_MS = 22000
 export async function callAnthropic(
   config: LLMConfig,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  conversationHistory?: ConversationMessage[]
 ): Promise<LLMResponse> {
   const client = new Anthropic({
     apiKey: config.apiKey,
@@ -32,13 +33,22 @@ export async function callAnthropic(
   // Map to actual API model name
   const apiModel = MODEL_MAP[config.model] || config.model
 
+  // Build messages array with optional conversation history
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  
+  // Add conversation history if provided
+  if (conversationHistory && conversationHistory.length > 0) {
+    messages.push(...conversationHistory)
+  }
+  
+  // Add the current user prompt
+  messages.push({ role: 'user', content: userPrompt })
+
   const response = await client.messages.create({
     model: apiModel,
     max_tokens: 1500, // Limit response size to speed up
     system: systemPrompt,
-    messages: [
-      { role: 'user', content: userPrompt },
-    ],
+    messages,
   })
 
   const content = response.content[0]?.type === 'text' 

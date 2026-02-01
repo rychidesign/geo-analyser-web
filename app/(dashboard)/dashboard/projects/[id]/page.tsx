@@ -23,7 +23,8 @@ import {
   Cpu,
   Trash2,
   Square,
-  Pause
+  Pause,
+  Link2
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -92,12 +93,24 @@ export default function ProjectPage() {
     }
   }, [visibleQueriesCount, projectId])
 
-  const loadMoreScans = () => {
-    setVisibleScansCount(prev => prev + 5)
+  const toggleScansExpanded = () => {
+    if (visibleScansCount >= scans.length) {
+      // Collapse to 5
+      setVisibleScansCount(5)
+    } else {
+      // Show all
+      setVisibleScansCount(scans.length)
+    }
   }
 
-  const loadMoreQueries = () => {
-    setVisibleQueriesCount(prev => prev + 5)
+  const toggleQueriesExpanded = () => {
+    if (visibleQueriesCount >= queries.length) {
+      // Collapse to 5
+      setVisibleQueriesCount(5)
+    } else {
+      // Show all
+      setVisibleQueriesCount(queries.length)
+    }
   }
 
   // Reload project when scan completes - only notify once per job
@@ -204,10 +217,19 @@ export default function ProjectPage() {
   const completedScans = scans.filter(scan => scan.status === 'completed')
   const lastScan = completedScans[0]
 
+  // Check if any scan has follow-ups active
+  const hasAnyFollowUpScans = completedScans.some(s => s.follow_up_active)
+
   // Calculate averages across ALL completed scans
   const avgMetrics = completedScans.length > 0 ? {
-    overall: Math.round(completedScans.reduce((sum, s) => sum + (s.overall_score || 0), 0) / completedScans.length),
+    overall: Math.round(completedScans.reduce((sum, s) => sum + (s.overall_score || 0), 0) / completedScans.length * 10) / 10,
     visibility: Math.round(completedScans.reduce((sum, s) => sum + (s.avg_visibility || 0), 0) / completedScans.length),
+    persistence: (() => {
+      // Only average persistence from scans where follow-ups were active
+      const scansWithFollowUp = completedScans.filter(s => s.follow_up_active && s.brand_persistence !== null)
+      if (scansWithFollowUp.length === 0) return null  // n/a when no follow-ups
+      return Math.round(scansWithFollowUp.reduce((sum, s) => sum + (s.brand_persistence || 0), 0) / scansWithFollowUp.length)
+    })(),
     sentiment: (() => {
       // Only average sentiment from scans where brand was mentioned (visibility > 0)
       const scansWithVisibility = completedScans.filter(s => (s.avg_visibility || 0) > 0 && s.avg_sentiment !== null)
@@ -223,9 +245,9 @@ export default function ProjectPage() {
   } : null
 
   return (
-    <>
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0 px-4 py-4 lg:px-8">
+      <div className="bg-zinc-950 border-b border-zinc-800/50 shrink-0 px-4 py-4 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link 
@@ -269,7 +291,7 @@ export default function ProjectPage() {
       </div>
 
       {/* Content */}
-      <div className="px-4 py-4 lg:px-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-8">
         {/* Project Info */}
         <div className="flex items-center gap-4 text-sm text-zinc-400 flex-wrap mb-8">
           <span className="flex items-center gap-1">
@@ -289,6 +311,10 @@ export default function ProjectPage() {
             {project.scheduled_scan_enabled 
               ? `Scheduled: ${DAYS[project.scheduled_scan_day || 0]}`
               : 'No schedule'}
+          </span>
+          <span className="text-zinc-600">•</span>
+          <span>
+            Spent: ${scans.reduce((sum, s) => sum + (s.total_cost_usd || 0), 0).toFixed(4)}
           </span>
         </div>
 
@@ -337,19 +363,23 @@ export default function ProjectPage() {
         )}
 
         {/* Stats - Averages across ALL completed scans */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
             <CardHeader className="pb-0">
               <div className="flex items-start justify-between">
                 <div className="text-2xl font-bold text-emerald-400">
-                  {avgMetrics?.overall ?? '-'}%
+                  {avgMetrics?.overall !== undefined ? avgMetrics.overall.toFixed(1) : '-'}%
                 </div>
                 <Target className="w-4 h-4 text-zinc-400" />
               </div>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Overall Score</div>
-              <p className="text-xs text-zinc-500">Average across {completedScans.length} scan{completedScans.length !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-zinc-500">
+                {hasAnyFollowUpScans 
+                  ? 'Combined score including recommendation strength and persistence.'
+                  : 'Combined brand recommendation score.'}
+              </p>
             </CardContent>
           </Card>
 
@@ -364,9 +394,49 @@ export default function ProjectPage() {
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Visibility</div>
-              <p className="text-xs text-zinc-500">Brand (50) + domain (50) = 100</p>
+              <p className="text-xs text-zinc-500">Average brand/domain mention rate across all scans.</p>
             </CardContent>
           </Card>
+
+          {/* Persistence - upsell card when follow-ups not enabled */}
+          {hasAnyFollowUpScans ? (
+            <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
+              <CardHeader className="pb-0">
+                <div className="flex items-start justify-between">
+                  <div className={`text-2xl font-bold ${avgMetrics && avgMetrics.persistence !== null ? 'text-cyan-400' : 'text-zinc-600'}`}>
+                    {avgMetrics && avgMetrics.persistence !== null ? `${avgMetrics.persistence}%` : 'n/a'}
+                  </div>
+                  <Link2 className="w-4 h-4 text-zinc-400" />
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="text-xs font-medium text-zinc-300 mb-1">Persistence</div>
+                <p className="text-xs text-zinc-500">How often your brand stays mentioned across follow-up responses.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Link href={`/dashboard/projects/${projectId}/settings`}>
+              <Card 
+                className="opacity-50 hover:opacity-75 transition-opacity cursor-pointer group"
+                style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.3))' }}
+              >
+                <CardHeader className="pb-0">
+                  <div className="flex items-start justify-between">
+                    <div className="text-2xl font-bold text-zinc-600">
+                      off
+                    </div>
+                    <Link2 className="w-4 h-4 text-zinc-600" />
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="text-xs font-medium text-zinc-400 mb-1">Persistence</div>
+                  <p className="text-xs text-zinc-600 group-hover:text-zinc-500">
+                    Enable follow-up queries to measure brand persistence →
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+          )}
 
           <Card style={{ background: 'linear-gradient(to top, #18181b, rgba(24, 24, 27, 0.5))' }}>
             <CardHeader className="pb-0">
@@ -379,7 +449,7 @@ export default function ProjectPage() {
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Sentiment</div>
-              <p className="text-xs text-zinc-500">Only counted when brand is mentioned</p>
+              <p className="text-xs text-zinc-500">How positively AI talks about your brand. 50% = neutral, 90%+ = very positive.</p>
             </CardContent>
           </Card>
 
@@ -394,7 +464,7 @@ export default function ProjectPage() {
             </CardHeader>
             <CardContent className="pt-4">
               <div className="text-xs font-medium text-zinc-300 mb-1">Ranking</div>
-              <p className="text-xs text-zinc-500">Only counted when brand is mentioned</p>
+              <p className="text-xs text-zinc-500">Position in recommendation lists. 100% = 1st place, 80% = 2nd, etc.</p>
             </CardContent>
           </Card>
         </div>
@@ -451,12 +521,14 @@ export default function ProjectPage() {
                       </span>
                     </div>
                   ))}
-                  {queries.length > visibleQueriesCount && (
+                  {queries.length > 5 && (
                     <button
-                      onClick={loadMoreQueries}
+                      onClick={toggleQueriesExpanded}
                       className="w-full text-sm text-zinc-500 hover:text-zinc-300 py-2 transition-colors"
                     >
-                      + {Math.min(5, queries.length - visibleQueriesCount)} more quer{Math.min(5, queries.length - visibleQueriesCount) === 1 ? 'y' : 'ies'}
+                      {visibleQueriesCount >= queries.length 
+                        ? 'Collapse queries' 
+                        : `+ ${queries.length - 5} more quer${queries.length - 5 === 1 ? 'y' : 'ies'}`}
                     </button>
                   )}
                 </div>
@@ -530,7 +602,7 @@ export default function ProjectPage() {
                         {/* Mobile: Overall Score on first row right */}
                         {scan.status === 'completed' && scan.overall_score !== null && (
                           <span className="lg:hidden text-sm font-semibold text-emerald-400">
-                            {scan.overall_score}%
+                            {scan.overall_score.toFixed(1)}%
                           </span>
                         )}
                       </div>
@@ -542,6 +614,10 @@ export default function ProjectPage() {
                             <span className="flex items-center gap-1">
                               {(scan.avg_visibility ?? 0) > 0 ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                               {scan.avg_visibility ?? 0}%
+                            </span>
+                            <span className="flex items-center gap-1" title="Persistence">
+                              <Link2 className="w-3.5 h-3.5" />
+                              {scan.follow_up_active && scan.brand_persistence !== null ? `${scan.brand_persistence}%` : 'n/a'}
                             </span>
                             <span className="flex items-center gap-1">
                               <Smile className="w-3.5 h-3.5" />
@@ -564,7 +640,7 @@ export default function ProjectPage() {
                         <div className="hidden lg:flex items-center gap-4">
                           {scan.overall_score !== null && (
                             <span className="text-sm font-semibold text-emerald-400">
-                              {scan.overall_score}%
+                              {scan.overall_score.toFixed(1)}%
                             </span>
                           )}
                           <span className="text-xs text-zinc-500">
@@ -575,13 +651,15 @@ export default function ProjectPage() {
                     </Link>
                   ))}
                   
-                  {/* Load more button */}
-                  {scans.length > visibleScansCount && (
+                  {/* Toggle expand/collapse button */}
+                  {scans.length > 5 && (
                     <button
-                      onClick={loadMoreScans}
+                      onClick={toggleScansExpanded}
                       className="w-full text-sm text-zinc-500 hover:text-zinc-300 py-2 transition-colors"
                     >
-                      + {Math.min(5, scans.length - visibleScansCount)} more scan{Math.min(5, scans.length - visibleScansCount) !== 1 ? 's' : ''}
+                      {visibleScansCount >= scans.length 
+                        ? 'Collapse scans' 
+                        : `+ ${scans.length - 5} more scan${scans.length - 5 !== 1 ? 's' : ''}`}
                     </button>
                   )}
                 </div>
@@ -612,6 +690,6 @@ export default function ProjectPage() {
           </Card>
         </div>
       </div>
-    </>
+    </div>
   )
 }

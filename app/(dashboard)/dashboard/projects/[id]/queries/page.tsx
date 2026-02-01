@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { 
@@ -11,15 +11,19 @@ import {
   MessageSquare,
   Sparkles,
   Settings,
-  ExternalLink
+  ExternalLink,
+  Save
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { ProjectQuery } from '@/lib/db/schema'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import type { ProjectQuery, Project } from '@/lib/db/schema'
 import { useToast } from '@/components/ui/toast'
-import { MODEL_PRICING } from '@/lib/llm/types'
+import { MODEL_PRICING, AVAILABLE_MODELS } from '@/lib/llm/types'
+import { usePricing } from '@/lib/hooks/use-pricing'
 
 const QUERY_TYPES = [
   { value: 'informational', label: 'Informational' },
@@ -27,16 +31,13 @@ const QUERY_TYPES = [
   { value: 'comparison', label: 'Comparison' },
 ]
 
-const MODEL_LABELS: Record<string, string> = {
-  'gpt-5-mini': 'GPT-5 Mini',
-  'gpt-5-2': 'GPT-5.2',
-  'claude-haiku-4-5': 'Claude Haiku 4.5',
-  'claude-sonnet-4-5': 'Claude Sonnet 4.5',
-  'claude-opus-4-5': 'Claude Opus 4.5',
-  'gemini-2-5-flash-lite': 'Gemini 2.5 Flash Lite',
-  'gemini-2-5-flash': 'Gemini 2.5 Flash',
-  'gemini-3-flash-preview': 'Gemini 3 Flash Preview',
-}
+// Recommended models for QUERY GENERATION - newer, more capable models for quality queries
+const RECOMMENDED_GENERATION_MODELS = [
+  'claude-sonnet-4-5',
+  'gpt-5-2',
+  'sonar-reasoning-pro',
+]
+
 
 export default function QueriesPage() {
   const params = useParams()
@@ -45,66 +46,118 @@ export default function QueriesPage() {
   const { showSuccess, showError } = useToast()
   
   const [queries, setQueries] = useState<ProjectQuery[]>([])
+  const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingModel, setSavingModel] = useState(false)
   const [generating, setGenerating] = useState(false)
   
   const [newQuery, setNewQuery] = useState('')
   const [newQueryType, setNewQueryType] = useState('informational')
   
   const [queryCount, setQueryCount] = useState(5)
-  const [generationModel, setGenerationModel] = useState<string | null>(null)
-  const [loadingSettings, setLoadingSettings] = useState(true)
+  const [generationModel, setGenerationModel] = useState<string>('gpt-5-mini')
+
+  // Fetch pricing from API
+  const { pricing, isLoading: pricingLoading } = usePricing()
+
+  // Build helper models list from pricing data (for query generation)
+  const generationModels = React.useMemo(() => {
+    if (pricing.length === 0) {
+      return AVAILABLE_MODELS
+        .filter(m => m.isActive)
+        .map(m => ({
+          value: m.id,
+          label: m.name,
+          cheapest: false,
+          recommended: RECOMMENDED_GENERATION_MODELS.includes(m.id),
+        }))
+    }
+    
+    // Find the cheapest model based on total cost (input + output)
+    const activeModels = pricing.filter(p => p.is_active)
+    const cheapestModel = activeModels.reduce((min, p) => {
+      const totalCost = p.input_cost_cents + p.output_cost_cents
+      const minCost = min.input_cost_cents + min.output_cost_cents
+      return totalCost < minCost ? p : min
+    }, activeModels[0])
+    
+    return activeModels
+      .map(p => {
+        const modelInfo = AVAILABLE_MODELS.find(m => m.id === p.model)
+        return {
+          value: p.model,
+          label: modelInfo?.name || p.model,
+          cheapest: p.model === cheapestModel?.model,
+          recommended: RECOMMENDED_GENERATION_MODELS.includes(p.model),
+        }
+      })
+      .sort((a, b) => {
+        // Sort: recommended first, then cheapest, then by label
+        if (a.recommended !== b.recommended) return a.recommended ? -1 : 1
+        if (a.cheapest !== b.cheapest) return a.cheapest ? -1 : 1
+        return a.label.localeCompare(b.label)
+      })
+  }, [pricing])
 
   // Estimate cost for query generation
-  // Estimated tokens: ~800 input (prompt), ~40 output per query
-  const estimatedCost = generationModel && MODEL_PRICING[generationModel]
-    ? (() => {
-        const pricing = MODEL_PRICING[generationModel]
-        const inputTokens = 800
-        const outputTokens = queryCount * 40
-        const cost = (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output
-        return cost
-      })()
-    : null
+  const estimatedCost = React.useMemo(() => {
+    if (!generationModel || !MODEL_PRICING[generationModel]) return null
+    const pricing = MODEL_PRICING[generationModel]
+    const inputTokens = 800
+    const outputTokens = queryCount * 40
+    return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output
+  }, [generationModel, queryCount])
 
   useEffect(() => {
-    loadQueries()
-    loadHelperSettings()
+    loadProjectAndQueries()
   }, [projectId])
 
-  const loadQueries = async () => {
+  const loadProjectAndQueries = async () => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/queries`)
-      if (res.ok) {
-        const data = await res.json()
-        setQueries(data)
+      // Load project settings and queries in parallel
+      const [projectRes, queriesRes] = await Promise.all([
+        fetch(`/api/projects/${projectId}`),
+        fetch(`/api/projects/${projectId}/queries`)
+      ])
+      
+      if (projectRes.ok) {
+        const projectData = await projectRes.json()
+        setProject(projectData)
+        setGenerationModel(projectData.query_generation_model || 'gpt-5-mini')
+      }
+      
+      if (queriesRes.ok) {
+        const queriesData = await queriesRes.json()
+        setQueries(queriesData)
       }
     } catch (error) {
-      console.error('Error loading queries:', error)
+      console.error('Error loading data:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const loadHelperSettings = async () => {
-    const DEFAULT_MODEL = 'gpt-5-mini'
+  const saveGenerationModel = async (model: string) => {
+    setSavingModel(true)
     try {
-      const res = await fetch('/api/settings/helpers')
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query_generation_model: model }),
+      })
+      
       if (res.ok) {
-        const data = await res.json()
-        setGenerationModel(data.query_generation_model || DEFAULT_MODEL)
+        setGenerationModel(model)
+        showSuccess('Query generation model updated')
       } else {
-        // Endpoint returned error - use fallback model
-        console.warn('Helper settings endpoint returned error, using default model')
-        setGenerationModel(DEFAULT_MODEL)
+        showError('Failed to save model setting')
       }
     } catch (error) {
-      // Network or other error - use fallback model
-      console.error('Error loading helper settings:', error)
-      setGenerationModel(DEFAULT_MODEL)
+      console.error('Error saving model:', error)
+      showError('Failed to save model setting')
     } finally {
-      setLoadingSettings(false)
+      setSavingModel(false)
     }
   }
 
@@ -227,33 +280,46 @@ export default function QueriesPage() {
                   <p className="text-xs text-zinc-500">Generate between 1-20 queries at once</p>
                 </div>
 
-                {/* Model Info */}
+                {/* Model Selector */}
                 <div className="space-y-2">
-                  <Label className="text-zinc-400">Generation model</Label>
-                  <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
-                    {loadingSettings ? (
-                      <div className="flex items-center gap-2 text-sm text-zinc-400">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading...
-                      </div>
-                    ) : (
-                      <span className="text-sm font-medium">
-                        {generationModel ? MODEL_LABELS[generationModel] || generationModel : 'Not configured'}
-                      </span>
+                  <Label htmlFor="gen-model">Generation model</Label>
+                  <Select 
+                    value={generationModel} 
+                    onValueChange={saveGenerationModel}
+                    disabled={savingModel || pricingLoading}
+                  >
+                    <SelectTrigger id="gen-model" className="w-full">
+                      <SelectValue placeholder="Select model..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {generationModels.map((model) => (
+                        <SelectItem key={model.value} value={model.value}>
+                          <div className="flex items-center gap-2">
+                            <span>{model.label}</span>
+                            {model.recommended && (
+                              <Badge variant="secondary" className="text-xs bg-emerald-500/20 text-emerald-400">Recommended</Badge>
+                            )}
+                            {model.cheapest && !model.recommended && (
+                              <Badge variant="secondary" className="text-xs text-zinc-500">Cheapest</Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center justify-between">
+                    {estimatedCost !== null && (
+                      <p className="text-xs text-zinc-500">
+                        Estimated cost: ~${estimatedCost < 0.0001 ? '<0.0001' : estimatedCost.toFixed(4)}
+                      </p>
                     )}
-                    <Link 
-                      href="/dashboard/settings"
-                      className="inline-flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                    >
-                      <Settings className="w-3 h-3" />
-                      Change
-                    </Link>
+                    {savingModel && (
+                      <div className="flex items-center gap-1 text-xs text-zinc-400">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Saving...
+                      </div>
+                    )}
                   </div>
-                  {estimatedCost !== null && (
-                    <p className="text-xs text-zinc-500">
-                      Estimated cost: ~${estimatedCost < 0.0001 ? '<0.0001' : estimatedCost.toFixed(4)}
-                    </p>
-                  )}
                 </div>
 
                 {/* Generate Button */}

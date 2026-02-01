@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { TABLES } from '@/lib/db/schema'
+import { releaseReservation } from '@/lib/credits'
 
 export async function POST(
   request: NextRequest,
@@ -8,6 +9,9 @@ export async function POST(
 ) {
   try {
     const { id: projectId, scanId } = await params
+    const body = await request.json().catch(() => ({}))
+    const { reservationId } = body
+    
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -32,6 +36,29 @@ export async function POST(
       return NextResponse.json({ error: 'Scan is not running' }, { status: 400 })
     }
 
+    // Release credit reservation if provided
+    if (reservationId) {
+      const releaseResult = await releaseReservation(reservationId, 'Scan stopped by user')
+      if (releaseResult.success) {
+        console.log(`[Stop Scan] Released reservation ${reservationId}`)
+      } else {
+        console.error(`[Stop Scan] Failed to release reservation: ${releaseResult.error}`)
+      }
+    } else {
+      // Try to find reservation by scan_id
+      const { data: reservation } = await supabase
+        .from('credit_reservations')
+        .select('id')
+        .eq('scan_id', scanId)
+        .eq('status', 'active')
+        .single()
+      
+      if (reservation) {
+        await releaseReservation(reservation.id, 'Scan stopped by user')
+        console.log(`[Stop Scan] Released reservation ${reservation.id} (found by scan_id)`)
+      }
+    }
+
     // Update scan status to stopped
     const { error: updateError } = await supabase
       .from(TABLES.SCANS)
@@ -48,7 +75,7 @@ export async function POST(
 
     console.log(`[Stop Scan] Scan ${scanId} stopped by user`)
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, creditsReleased: true })
   } catch (error: any) {
     console.error('[Stop Scan] Error:', error)
     return NextResponse.json(

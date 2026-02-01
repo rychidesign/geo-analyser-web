@@ -1,11 +1,12 @@
 // LLM Provider Types
 
-export type LLMProvider = 'openai' | 'anthropic' | 'google'
+export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'groq' | 'perplexity'
 
 export type LLMModel = 
   // OpenAI
   | 'gpt-5-2'
   | 'gpt-5-mini'
+  | 'gpt-5-nano'
   // Anthropic  
   | 'claude-sonnet-4-5'
   | 'claude-opus-4-5'
@@ -15,6 +16,11 @@ export type LLMModel =
   | 'gemini-3-flash-preview'
   | 'gemini-2-5-flash'
   | 'gemini-2-5-flash-lite'
+  // Groq
+  | 'llama-4-scout'
+  | 'llama-4-maverick'
+  // Perplexity
+  | 'sonar-reasoning-pro'
 
 export interface ModelInfo {
   id: LLMModel
@@ -40,6 +46,13 @@ export const AVAILABLE_MODELS: ModelInfo[] = [
     provider: 'openai',
     description: 'Balanced performance and cost',
     pricing: { input: 0.25, output: 2.00 },
+  },
+  {
+    id: 'gpt-5-nano',
+    name: 'GPT-5 Nano',
+    provider: 'openai',
+    description: 'Fastest and most affordable',
+    pricing: { input: 0.10, output: 0.40 },
   },
   
   // Anthropic
@@ -94,6 +107,31 @@ export const AVAILABLE_MODELS: ModelInfo[] = [
     description: 'Most affordable Google model',
     pricing: { input: 0.30, output: 2.50 },
   },
+  
+  // Groq (ultra-fast inference)
+  {
+    id: 'llama-4-scout',
+    name: 'Llama 4 Scout',
+    provider: 'groq',
+    description: 'Meta Llama 4 on Groq - ultra fast',
+    pricing: { input: 0.10, output: 0.15 },
+  },
+  {
+    id: 'llama-4-maverick',
+    name: 'Llama 4 Maverick',
+    provider: 'groq',
+    description: 'Most capable open model on Groq',
+    pricing: { input: 0.20, output: 0.30 },
+  },
+  
+  // Perplexity (web-connected)
+  {
+    id: 'sonar-reasoning-pro',
+    name: 'Sonar Reasoning Pro',
+    provider: 'perplexity',
+    description: 'Advanced reasoning with web access',
+    pricing: { input: 1.00, output: 4.00 },
+  },
 ]
 
 // Helper to get models by provider
@@ -120,6 +158,12 @@ export interface LLMConfig {
   provider: LLMProvider
   apiKey: string
   model: LLMModel
+}
+
+// Conversation message for multi-turn conversations
+export interface ConversationMessage {
+  role: 'user' | 'assistant'
+  content: string
 }
 
 export interface LLMResponse {
@@ -151,7 +195,9 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
 
 // Default models for each provider (cheapest available)
 export const DEFAULT_MODELS: Record<LLMProvider, LLMModel> = {
-  openai: 'gpt-5-mini',
+  openai: 'gpt-5-nano',
   anthropic: 'claude-haiku-4-5',
   google: 'gemini-2-5-flash-lite',
+  groq: 'llama-4-scout',
+  perplexity: 'sonar-reasoning-pro',
 }

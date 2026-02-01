@@ -30,10 +30,19 @@ export async function GET(
 
     console.log(`[History] Fetching scans for project ${projectId}, user ${user.id}, since ${startDate.toISOString()}`)
 
+    // Get project to check if follow-ups are enabled
+    const { data: project } = await supabase
+      .from(TABLES.PROJECTS)
+      .select('follow_up_enabled')
+      .eq('id', projectId)
+      .single()
+    
+    const followUpEnabled = project?.follow_up_enabled || false
+
     // Get all completed scans for this project within date range
     const { data: scans, error } = await supabase
       .from(TABLES.SCANS)
-      .select('id, created_at, overall_score, avg_visibility, avg_sentiment, avg_ranking')
+      .select('id, created_at, overall_score, avg_visibility, avg_sentiment, avg_ranking, brand_persistence, follow_up_active')
       .eq('project_id', projectId)
       .eq('user_id', user.id)
       .eq('status', 'completed')
@@ -55,6 +64,8 @@ export async function GET(
       sentimentCount: number  // Track scans with visibility > 0
       rankingSum: number
       rankingCount: number    // Track scans with visibility > 0
+      persistenceSum: number
+      persistenceCount: number // Track scans with follow_up_active
     }> = {}
 
     console.log(`[History] Found ${scans?.length || 0} scans for project ${projectId}`)
@@ -86,6 +97,8 @@ export async function GET(
           sentimentCount: 0,
           rankingSum: 0,
           rankingCount: 0,
+          persistenceSum: 0,
+          persistenceCount: 0,
         }
       }
 
@@ -104,6 +117,12 @@ export async function GET(
         dailyData[dateKey].rankingSum += scan.avg_ranking
         dailyData[dateKey].rankingCount += 1
       }
+      
+      // Only include persistence if scan had follow_up_active
+      if (scan.follow_up_active && scan.brand_persistence !== null) {
+        dailyData[dateKey].persistenceSum += scan.brand_persistence
+        dailyData[dateKey].persistenceCount += 1
+      }
     }
 
     console.log(`[History] Grouped into ${Object.keys(dailyData).length} days:`, Object.keys(dailyData).sort())
@@ -113,16 +132,18 @@ export async function GET(
       .map(day => ({
         date: day.date,
         scans: day.scans,
-        overall: Math.round(day.overall / day.scans),
+        overall: Math.round(day.overall / day.scans * 10) / 10, // One decimal place
         visibility: Math.round(day.visibility / day.scans),
         // Sentiment and ranking are null if no scans with visibility > 0
         sentiment: day.sentimentCount > 0 ? Math.round(day.sentimentSum / day.sentimentCount) : null,
         ranking: day.rankingCount > 0 ? Math.round(day.rankingSum / day.rankingCount) : null,
+        // Persistence is null if no scans with follow_up_active
+        persistence: day.persistenceCount > 0 ? Math.round(day.persistenceSum / day.persistenceCount) : null,
       }))
       .sort((a, b) => a.date.localeCompare(b.date)) // Sort by date ascending
 
     console.log(`[History] Returning ${history.length} days of data`)
-    return NextResponse.json({ history })
+    return NextResponse.json({ history, followUpEnabled })
   } catch (error) {
     console.error('Error in history API:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

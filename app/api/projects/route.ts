@@ -40,7 +40,13 @@ export async function POST(request: NextRequest) {
       language, 
       brand_variations,
       target_keywords,
-      llm_models  // Frontend sends as llm_models
+      llm_models,  // Frontend sends as llm_models
+      query_generation_model,
+      evaluation_model,
+      follow_up_enabled,
+      follow_up_depth,
+      scheduled_scan_enabled,
+      scheduled_scan_day,
     } = body
 
     // Validation
@@ -73,9 +79,13 @@ export async function POST(request: NextRequest) {
       brand_variations: brand_variations.filter((b: string) => b.trim()),
       target_keywords: target_keywords?.filter((k: string) => k.trim()) || [],
       selected_models: llm_models,  // Database column is selected_models
-      scheduled_scan_enabled: false,
-      scheduled_scan_day: null,
+      scheduled_scan_enabled: scheduled_scan_enabled || false,
+      scheduled_scan_day: scheduled_scan_enabled ? (scheduled_scan_day ?? 1) : null,
       last_scheduled_scan_at: null,
+      query_generation_model: query_generation_model || 'gpt-5-mini',
+      evaluation_model: evaluation_model || 'gpt-5-mini',
+      follow_up_enabled: follow_up_enabled || false,
+      follow_up_depth: follow_up_depth ?? 1,
     }
     
     console.log('[Create Project] Creating project with data:', JSON.stringify(projectData, null, 2))

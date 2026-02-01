@@ -1,8 +1,14 @@
 'use client'
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { getFollowUpQuestion, type QueryType } from './follow-up-templates'
 
 // Types
+interface ConversationMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface ScanJob {
   id: string  // scan ID from database
   projectId: string
@@ -14,7 +20,9 @@ export interface ScanJob {
     message?: string
   }
   error?: string
+  errorCode?: string  // For specific error handling (SCAN_LIMIT_REACHED, INSUFFICIENT_CREDITS, etc.)
   startedAt?: Date
+  reservationId?: string  // Credit reservation ID
 }
 
 interface ScanContextType {
@@ -94,22 +102,37 @@ export function ScanProvider({ children }: ScanProviderProps) {
       
       if (!startRes.ok) {
         const errorData = await startRes.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(errorData.error || `Failed to start scan (${startRes.status})`)
+        const error = new Error(errorData.error || `Failed to start scan (${startRes.status})`) as Error & { code?: string }
+        error.code = errorData.code
+        throw error
       }
       
-      const { scanId, queries, models, totalOperations, brandVariations, domain } = await startRes.json()
+      const { 
+        scanId, 
+        queries, 
+        models, 
+        totalOperations, 
+        brandVariations, 
+        domain,
+        language,
+        reservationId,
+        followUpEnabled,
+        followUpDepth,
+      } = await startRes.json()
       
-      // Update job with scan ID and progress info
+      // Update job with scan ID, reservation ID, and progress info
       setJobs(prev => prev.map(job => 
         job.projectId === nextJob.projectId 
-          ? { ...job, id: scanId, progress: { current: 0, total: totalOperations, message: 'Starting...' } }
+          ? { ...job, id: scanId, reservationId, progress: { current: 0, total: totalOperations, message: 'Starting...' } }
           : job
       ))
       
-      // 2. Process each query × model
+      // 2. Process each query × model (with optional follow-ups)
       let completed = 0
       
       for (const query of queries) {
+        const queryType = (query.query_type || 'informational') as QueryType
+        
         for (const model of models) {
           // Check if cancelled
           if (abortController.signal.aborted) {
@@ -131,11 +154,11 @@ export function ScanProvider({ children }: ScanProviderProps) {
           ))
           
           try {
-            // Call LLM
+            // === INITIAL QUERY (Level 0) ===
             const llmRes = await fetch('/api/llm/call', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ model, query: query.query_text }),
+              body: JSON.stringify({ model, query: query.query_text, language }),
               signal: abortController.signal,
             })
             
@@ -146,7 +169,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
             
             const llmResult = await llmRes.json()
             
-            // Analyze response using AI evaluation
+            // Evaluate initial response
             let metrics
             let evaluationCost = null
             
@@ -169,8 +192,8 @@ export function ScanProvider({ children }: ScanProviderProps) {
               throw new Error('AI evaluation failed')
             }
             
-            // Save result
-            await fetch('/api/scan/save-result', {
+            // Save initial result
+            const saveRes = await fetch('/api/scan/save-result', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -181,10 +204,16 @@ export function ScanProvider({ children }: ScanProviderProps) {
                 inputTokens: llmResult.inputTokens,
                 outputTokens: llmResult.outputTokens,
                 metrics,
-                evaluationCost, // Include AI evaluation cost if used
+                evaluationCost,
+                followUpLevel: 0,
+                parentResultId: null,
+                followUpQueryUsed: null,
               }),
               signal: abortController.signal,
             })
+            
+            const saveResult = await saveRes.json()
+            let parentResultId = saveResult.resultId
             
             completed++
             
@@ -194,6 +223,139 @@ export function ScanProvider({ children }: ScanProviderProps) {
                 ? { ...job, progress: { current: completed, total: totalOperations } }
                 : job
             ))
+            
+            // === FOLLOW-UP QUERIES (Levels 1-3) ===
+            if (followUpEnabled && followUpDepth > 0) {
+              // Build conversation history
+              const conversationHistory: ConversationMessage[] = [
+                { role: 'user', content: query.query_text },
+                { role: 'assistant', content: llmResult.content },
+              ]
+              
+              for (let level = 1; level <= followUpDepth; level++) {
+                // Check if cancelled
+                if (abortController.signal.aborted) {
+                  throw new Error('Scan cancelled by user')
+                }
+                
+                // Get follow-up question (respects language setting)
+                const followUpQuery = getFollowUpQuestion(queryType, level as 1 | 2 | 3, language || 'en')
+                
+                // Update progress message
+                setJobs(prev => prev.map(job => 
+                  job.projectId === nextJob.projectId 
+                    ? { 
+                        ...job, 
+                        progress: { 
+                          current: completed, 
+                          total: totalOperations, 
+                          message: `${model} Follow-up ${level}...` 
+                        } 
+                      }
+                    : job
+                ))
+                
+                // Call LLM with conversation history (includes language for response language)
+                const followUpLlmRes = await fetch('/api/llm/call', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    model, 
+                    query: followUpQuery,
+                    conversationHistory,
+                    language,
+                  }),
+                  signal: abortController.signal,
+                })
+                
+                if (!followUpLlmRes.ok) {
+                  console.warn(`[Scan] Follow-up ${level} LLM call failed for ${model}`)
+                  completed++
+                  setJobs(prev => prev.map(job => 
+                    job.projectId === nextJob.projectId 
+                      ? { ...job, progress: { current: completed, total: totalOperations } }
+                      : job
+                  ))
+                  continue
+                }
+                
+                const followUpLlmResult = await followUpLlmRes.json()
+                
+                // Evaluate follow-up response
+                let followUpMetrics
+                let followUpEvalCost = null
+                
+                const followUpEvalRes = await fetch('/api/scan/evaluate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    content: followUpLlmResult.content,
+                    brandVariations,
+                    domain,
+                  }),
+                  signal: abortController.signal,
+                })
+                
+                if (followUpEvalRes.ok) {
+                  const followUpEvalResult = await followUpEvalRes.json()
+                  followUpMetrics = followUpEvalResult.metrics
+                  followUpEvalCost = followUpEvalResult.evaluation
+                } else {
+                  // Use zero metrics if evaluation fails
+                  followUpMetrics = {
+                    visibility_score: 0,
+                    sentiment_score: 0,
+                    ranking_position: null,
+                    recommendation_strength: 0,
+                    overall_score: 0,
+                    brand_mentioned: false,
+                    domain_mentioned: false,
+                    summary: 'Evaluation failed',
+                  }
+                }
+                
+                // Save follow-up result
+                const followUpSaveRes = await fetch('/api/scan/save-result', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    scanId,
+                    model,
+                    query: query.query_text, // Original query text for grouping
+                    response: followUpLlmResult.content,
+                    inputTokens: followUpLlmResult.inputTokens,
+                    outputTokens: followUpLlmResult.outputTokens,
+                    metrics: followUpMetrics,
+                    evaluationCost: followUpEvalCost,
+                    followUpLevel: level,
+                    parentResultId,
+                    followUpQueryUsed: followUpQuery,
+                  }),
+                  signal: abortController.signal,
+                })
+                
+                const followUpSaveResult = await followUpSaveRes.json()
+                
+                // Update parent for next level
+                parentResultId = followUpSaveResult.resultId
+                
+                // Add to conversation history for next follow-up
+                conversationHistory.push({ role: 'user', content: followUpQuery })
+                conversationHistory.push({ role: 'assistant', content: followUpLlmResult.content })
+                
+                completed++
+                
+                // Update progress
+                setJobs(prev => prev.map(job => 
+                  job.projectId === nextJob.projectId 
+                    ? { ...job, progress: { current: completed, total: totalOperations } }
+                    : job
+                ))
+                
+                // Small delay between follow-ups
+                await new Promise(resolve => setTimeout(resolve, 200))
+              }
+            }
             
           } catch (err: any) {
             if (err.name === 'AbortError') throw err
@@ -205,9 +367,11 @@ export function ScanProvider({ children }: ScanProviderProps) {
         }
       }
       
-      // 3. Complete scan
+      // 3. Complete scan (with reservation ID for credit processing)
       await fetch(`/api/projects/${nextJob.projectId}/scan/${scanId}/complete`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservationId }),
         signal: abortController.signal,
       })
       
@@ -231,7 +395,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
         console.error('[Scan] Error:', error)
         setJobs(prev => prev.map(job => 
           job.projectId === nextJob.projectId 
-            ? { ...job, status: 'failed' as const, error: error.message }
+            ? { ...job, status: 'failed' as const, error: error.message, errorCode: error.code }
             : job
         ))
       }
@@ -298,7 +462,7 @@ export function ScanProvider({ children }: ScanProviderProps) {
       controller.abort()
     }
     
-    // Find the job to get scan ID
+    // Find the job to get scan ID and reservation ID
     const job = jobsRef.current.find(j => j.projectId === projectId)
     
     // Update database if scan has started (has an ID)
@@ -306,6 +470,8 @@ export function ScanProvider({ children }: ScanProviderProps) {
       try {
         await fetch(`/api/projects/${projectId}/scan/${job.id}/stop`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reservationId: job.reservationId }),
         })
       } catch (err) {
         console.warn('[Scan] Failed to update scan status in database:', err)

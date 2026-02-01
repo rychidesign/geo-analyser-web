@@ -3,6 +3,10 @@ import { getTotalCostThisMonth, getCostsByProvider, getCostsByType, getUsageHist
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreditCard, TrendingUp, DollarSign, BarChart3, Zap, Sparkles, Target } from 'lucide-react'
 
+// Disable caching - always fetch fresh data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function CostsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

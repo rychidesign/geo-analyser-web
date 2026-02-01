@@ -66,7 +66,21 @@ export function AIResponse({ content, brandVariations, keywords, domain }: AIRes
 
   return (
     <div className="prose prose-sm prose-invert max-w-none text-sm leading-relaxed">
-      <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+      <ReactMarkdown 
+        rehypePlugins={[rehypeRaw]}
+        components={{
+          a: ({ href, children }) => (
+            <a 
+              href={href} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+            >
+              {children}
+            </a>
+          )
+        }}
+      >
         {processedContent}
       </ReactMarkdown>
       

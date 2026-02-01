@@ -68,6 +68,8 @@ export interface UserApiKeys {
   openai_api_key: string | null
   anthropic_api_key: string | null
   google_api_key: string | null
+  groq_api_key: string | null
+  perplexity_api_key: string | null
 }
 
 export async function getUserApiKeys(userId: string): Promise<UserApiKeys> {
@@ -77,6 +79,8 @@ export async function getUserApiKeys(userId: string): Promise<UserApiKeys> {
     openai_api_key: null,
     anthropic_api_key: null,
     google_api_key: null,
+    groq_api_key: null,
+    perplexity_api_key: null,
   }
   
   for (const setting of settings) {

@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { callLLM, GEO_SYSTEM_PROMPT, calculateCost } from '@/lib/llm'
-import type { LLMProvider, LLMModel, LLMConfig } from '@/lib/llm/types'
+import { callLLM, getGEOSystemPrompt } from '@/lib/llm'
+import type { LLMProvider, LLMModel, LLMConfig, ConversationMessage } from '@/lib/llm/types'
 import type { Project, ProjectQuery, Scan, ScanResult, ScanMetrics } from '@/lib/db/schema'
 import { TABLES } from '@/lib/db/schema'
+import { getFollowUpQuestion, calculateWeightedScore } from './follow-up-templates'
+import type { QueryType } from './follow-up-templates'
 
 export interface ModelConfig {
   model: LLMModel
@@ -69,7 +71,10 @@ async function updateQueueProgress(
 export async function runScan(config: ScanConfig): Promise<Scan> {
   const supabase = await createClient()
   
-  const totalOperations = config.queries.length * config.models.length
+  // Calculate total operations including follow-ups
+  const followUpDepth = config.project.follow_up_enabled ? (config.project.follow_up_depth || 1) : 0
+  const operationsPerQuery = 1 + followUpDepth // Initial + follow-ups
+  const totalOperations = config.queries.length * config.models.length * operationsPerQuery
   
   // Create scan record
   const { data: scan, error: scanError } = await supabase
@@ -92,44 +97,9 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
     throw new Error(`Failed to create scan: ${scanError?.message}`)
   }
 
-  // Get AI evaluation settings
-  let evaluationModel: string | null = null
-  let evaluationApiKey: string | null = null
-  
-  const { data: helperSettings } = await supabase
-    .from('user_settings')
-    .select('*')
-    .eq('user_id', config.userId)
-    .eq('provider', '_helpers')
-    .single()
-  
-  evaluationModel = helperSettings?.encrypted_api_key || null // evaluation_model stored here
-  
-  if (evaluationModel) {
-    // Get API key for evaluation model's provider
-    const getProviderFromModel = (model: string): LLMProvider => {
-      if (model.startsWith('gpt')) return 'openai'
-      if (model.startsWith('claude')) return 'anthropic'
-      if (model.startsWith('gemini')) return 'google'
-      return 'openai'
-    }
-    
-    const evalProvider = getProviderFromModel(evaluationModel)
-    const { data: providerSettings } = await supabase
-      .from('user_settings')
-      .select('encrypted_api_key')
-      .eq('user_id', config.userId)
-      .eq('provider', evalProvider)
-      .single()
-    
-    evaluationApiKey = providerSettings?.encrypted_api_key || null
-    
-    if (!evaluationApiKey) {
-      throw new Error(`No API key configured for evaluation model provider: ${evalProvider}`)
-    }
-  } else {
-    throw new Error('No evaluation model configured. Please set an evaluation model in Settings.')
-  }
+  // Get AI evaluation settings from project (project-level helper models)
+  // Default to gpt-5-mini if not configured
+  const evaluationModel: string = config.project.evaluation_model || 'gpt-5-mini'
 
   let totalCost = 0
   let totalInputTokens = 0
@@ -174,9 +144,15 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
             model: modelConfig.model,
           }
 
+          // ========================================
+          // INITIAL RESPONSE (follow_up_level = 0)
+          // ========================================
+          const projectLanguage = config.project.language || 'en'
+          const systemPrompt = getGEOSystemPrompt(projectLanguage)
+          
           const response = await callLLM(
             llmConfig,
-            GEO_SYSTEM_PROMPT,
+            systemPrompt,
             query.query_text
           )
 
@@ -185,8 +161,7 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
             response.content,
             config.project.brand_variations,
             config.project.domain,
-            evaluationModel!,
-            evaluationApiKey!
+            evaluationModel
           )
           const metrics = evalResult.metrics
           const evaluationCost = evalResult.cost
@@ -196,8 +171,8 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
             evaluationCosts.push(evaluationCost)
           }
 
-          // Save result
-          const { data: result } = await supabase
+          // Save initial result
+          const { data: initialResult } = await supabase
             .from(TABLES.SCAN_RESULTS)
             .insert({
               scan_id: scan.id,
@@ -209,17 +184,118 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
               input_tokens: response.inputTokens,
               output_tokens: response.outputTokens,
               cost_usd: response.costUsd,
+              follow_up_level: 0,
+              parent_result_id: null,
+              follow_up_query_used: null,
             })
             .select()
             .single()
 
-          if (result) {
-            results.push(result)
+          if (initialResult) {
+            results.push(initialResult)
           }
 
           totalCost += response.costUsd
           totalInputTokens += response.inputTokens
           totalOutputTokens += response.outputTokens
+          completedOperations++
+
+          // ========================================
+          // FOLLOW-UP QUERIES (if enabled)
+          // ========================================
+          if (config.project.follow_up_enabled && followUpDepth > 0 && initialResult) {
+            // Build conversation history starting with initial exchange
+            const conversationHistory: ConversationMessage[] = [
+              { role: 'user', content: query.query_text },
+              { role: 'assistant', content: response.content },
+            ]
+            
+            let parentResultId = initialResult.id
+            
+            for (let level = 1; level <= followUpDepth; level++) {
+              // Check for pause/cancel before each follow-up
+              queueStatus = await checkQueueStatus(config.queueId)
+              if (queueStatus === 'cancelled') throw new Error('Scan cancelled by user')
+              while (queueStatus === 'paused') {
+                await new Promise(resolve => setTimeout(resolve, 5000))
+                queueStatus = await checkQueueStatus(config.queueId)
+                if (queueStatus === 'cancelled') throw new Error('Scan cancelled by user')
+              }
+              
+              // Update progress for follow-up
+              await updateQueueProgress(
+                config.queueId,
+                completedOperations,
+                totalOperations,
+                `Follow-up ${level}/${followUpDepth}: ${query.query_text.substring(0, 30)}... with ${modelConfig.model}`
+              )
+              
+              // Get follow-up question based on query type
+              const followUpQuestion = getFollowUpQuestion(
+                query.query_type as QueryType,
+                level as 1 | 2 | 3,
+                config.project.language || 'en'
+              )
+              
+              // Call LLM with conversation history (using same system prompt with language)
+              const followUpResponse = await callLLM(
+                llmConfig,
+                systemPrompt,
+                followUpQuestion,
+                conversationHistory
+              )
+              
+              // Evaluate follow-up response
+              const followUpEvalResult = await analyzeResponseWithAI(
+                followUpResponse.content,
+                config.project.brand_variations,
+                config.project.domain,
+                evaluationModel
+              )
+              
+              // Track evaluation costs
+              if (followUpEvalResult.cost.costUsd > 0) {
+                evaluationCosts.push(followUpEvalResult.cost)
+              }
+              
+              // Save follow-up result
+              const { data: followUpResult } = await supabase
+                .from(TABLES.SCAN_RESULTS)
+                .insert({
+                  scan_id: scan.id,
+                  provider: modelConfig.provider,
+                  model: modelConfig.model,
+                  query_text: query.query_text, // Original query for grouping
+                  ai_response_raw: followUpResponse.content,
+                  metrics_json: followUpEvalResult.metrics,
+                  input_tokens: followUpResponse.inputTokens,
+                  output_tokens: followUpResponse.outputTokens,
+                  cost_usd: followUpResponse.costUsd,
+                  follow_up_level: level,
+                  parent_result_id: parentResultId,
+                  follow_up_query_used: followUpQuestion,
+                })
+                .select()
+                .single()
+              
+              if (followUpResult) {
+                results.push(followUpResult)
+                // Update parent for next level
+                parentResultId = followUpResult.id
+              }
+              
+              // Add to conversation history for next iteration
+              conversationHistory.push(
+                { role: 'user', content: followUpQuestion },
+                { role: 'assistant', content: followUpResponse.content }
+              )
+              
+              totalCost += followUpResponse.costUsd
+              totalInputTokens += followUpResponse.inputTokens
+              totalOutputTokens += followUpResponse.outputTokens
+              completedOperations++
+            }
+          }
 
         } catch (error: any) {
           console.error(`Error calling ${modelConfig.provider}/${modelConfig.model}:`, error?.message || error)
@@ -237,18 +313,19 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
               input_tokens: 0,
               output_tokens: 0,
               cost_usd: 0,
+              follow_up_level: 0,
+              parent_result_id: null,
+              follow_up_query_used: null,
             })
           
-          // Continue with other models even if one fails
+          // Increment for all expected operations (initial + follow-ups)
+          completedOperations += operationsPerQuery
         }
-        
-        // Increment completed operations counter
-        completedOperations++
       }
     }
 
-    // Calculate aggregated metrics
-    const aggregatedMetrics = calculateAggregatedMetrics(results)
+    // Calculate aggregated metrics (now includes follow-up weighting)
+    const aggregatedMetrics = calculateAggregatedMetrics(results, followUpDepth)
 
     // Update scan with final stats
     const { data: updatedScan } = await supabase
@@ -285,6 +362,9 @@ export async function runScan(config: ScanConfig): Promise<Scan> {
         input_tokens: cost.inputTokens,
         output_tokens: cost.outputTokens,
         cost_usd: cost.costUsd,
+        follow_up_level: 0,
+        parent_result_id: null,
+        follow_up_query_used: null,
         created_at: new Date().toISOString(),
       }))
       await updateMonthlyUsage(config.userId, evaluationResults, 'evaluation')
@@ -308,8 +388,7 @@ async function analyzeResponseWithAI(
   content: string,
   brandVariations: string[],
   domain: string,
-  evaluationModel: string,
-  apiKey: string
+  evaluationModel: string
 ): Promise<{
   metrics: ScanMetrics
   cost: { provider: LLMProvider; model: string; inputTokens: number; outputTokens: number; costUsd: number }
@@ -367,7 +446,7 @@ Return ONLY a JSON object with this exact structure (no explanation):
     const provider = getProviderFromModel(evaluationModel)
     
     const response = await callLLM(
-      { provider, model: evaluationModel as LLMModel, apiKey },
+      { provider, model: evaluationModel as LLMModel, apiKey: '' }, // API key handled by Vercel AI Gateway
       'You are an expert evaluator for GEO (Generative Engine Optimization).',
       prompt
     )
@@ -420,7 +499,10 @@ interface AggregatedMetrics {
   ranking: number | null    // null when no visibility (n/a)
 }
 
-function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
+/**
+ * Calculate aggregated metrics with support for follow-up weighting
+ */
+function calculateAggregatedMetrics(results: ScanResult[], followUpDepth: number = 0): AggregatedMetrics {
   if (results.length === 0) {
     return { overall: 0, visibility: 0, sentiment: null, ranking: null }
   }
@@ -431,12 +513,24 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
     return { overall: 0, visibility: 0, sentiment: null, ranking: null }
   }
 
-  // Calculate averages
+  // If no follow-ups, use simple averaging (backward compatible)
+  if (followUpDepth === 0) {
+    return calculateSimpleAverages(metricsResults)
+  }
+
+  // With follow-ups, use weighted averaging
+  return calculateWeightedAverages(metricsResults, followUpDepth)
+}
+
+/**
+ * Simple averaging (original logic, for scans without follow-ups)
+ */
+function calculateSimpleAverages(metricsResults: ScanResult[]): AggregatedMetrics {
   let totalVisibility = 0
   let totalSentiment = 0
-  let sentimentCount = 0 // Only count when brand is mentioned (visibility > 0)
+  let sentimentCount = 0
   let totalRanking = 0
-  let rankingCount = 0   // Only count when brand is mentioned (visibility > 0)
+  let rankingCount = 0
   let totalRecommendation = 0
 
   for (const result of metricsResults) {
@@ -444,13 +538,11 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
     totalVisibility += metrics.visibility_score
     totalRecommendation += metrics.recommendation_score
     
-    // Only include sentiment when visibility > 0
     if (metrics.visibility_score > 0 && metrics.sentiment_score !== null) {
       totalSentiment += metrics.sentiment_score
       sentimentCount++
     }
     
-    // Only include ranking when brand is actually in a list (ranking > 0)
     if (metrics.visibility_score > 0 && metrics.ranking_score > 0) {
       totalRanking += metrics.ranking_score
       rankingCount++
@@ -464,6 +556,90 @@ function calculateAggregatedMetrics(results: ScanResult[]): AggregatedMetrics {
     sentiment: sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : null,
     ranking: rankingCount > 0 ? Math.round(totalRanking / rankingCount) : null,
     overall: Math.round(totalRecommendation / count),
+  }
+}
+
+/**
+ * Weighted averaging for scans with follow-ups
+ * Groups results by query+model and calculates weighted score for each group
+ */
+function calculateWeightedAverages(metricsResults: ScanResult[], followUpDepth: number): AggregatedMetrics {
+  // Group results by query_text + model (each group is a conversation chain)
+  const groups = new Map<string, ScanResult[]>()
+  
+  for (const result of metricsResults) {
+    const key = `${result.query_text}|${result.model}`
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key)!.push(result)
+  }
+
+  let totalVisibility = 0
+  let totalSentiment = 0
+  let sentimentCount = 0
+  let totalRanking = 0
+  let rankingCount = 0
+  let totalOverall = 0
+  let groupCount = 0
+
+  for (const groupResults of groups.values()) {
+    // Calculate weighted scores for this conversation chain
+    const visibilityScores = groupResults.map(r => ({
+      level: r.follow_up_level,
+      score: (r.metrics_json as ScanMetrics)?.visibility_score ?? null,
+    }))
+    
+    const sentimentScores = groupResults.map(r => ({
+      level: r.follow_up_level,
+      score: (r.metrics_json as ScanMetrics)?.sentiment_score ?? null,
+    }))
+    
+    const rankingScores = groupResults.map(r => ({
+      level: r.follow_up_level,
+      score: (r.metrics_json as ScanMetrics)?.ranking_score ?? null,
+    }))
+    
+    const recommendationScores = groupResults.map(r => ({
+      level: r.follow_up_level,
+      score: (r.metrics_json as ScanMetrics)?.recommendation_score ?? null,
+    }))
+
+    const weightedVisibility = calculateWeightedScore(visibilityScores, followUpDepth)
+    const weightedSentiment = calculateWeightedScore(sentimentScores, followUpDepth)
+    const weightedRanking = calculateWeightedScore(rankingScores, followUpDepth)
+    const weightedOverall = calculateWeightedScore(recommendationScores, followUpDepth)
+
+    if (weightedVisibility !== null) {
+      totalVisibility += weightedVisibility
+    }
+    
+    if (weightedSentiment !== null) {
+      totalSentiment += weightedSentiment
+      sentimentCount++
+    }
+    
+    if (weightedRanking !== null) {
+      totalRanking += weightedRanking
+      rankingCount++
+    }
+    
+    if (weightedOverall !== null) {
+      totalOverall += weightedOverall
+    }
+    
+    groupCount++
+  }
+
+  if (groupCount === 0) {
+    return { overall: 0, visibility: 0, sentiment: null, ranking: null }
+  }
+
+  return {
+    visibility: Math.round(totalVisibility / groupCount),
+    sentiment: sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : null,
+    ranking: rankingCount > 0 ? Math.round(totalRanking / rankingCount) : null,
+    overall: Math.round(totalOverall / groupCount),
   }
 }
 

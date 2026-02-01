@@ -29,6 +29,10 @@ export async function POST(request: NextRequest) {
       outputTokens,
       metrics,
       evaluationCost, // AI evaluation cost (optional)
+      // Follow-up fields (optional)
+      followUpLevel,
+      parentResultId,
+      followUpQueryUsed,
     } = await request.json()
 
     if (!scanId || !model || !query || !response) {
@@ -59,6 +63,10 @@ export async function POST(request: NextRequest) {
         input_tokens: inputTokens,
         output_tokens: outputTokens,
         cost_usd: cost,
+        // Follow-up fields
+        follow_up_level: followUpLevel ?? 0,
+        parent_result_id: parentResultId || null,
+        follow_up_query_used: followUpQueryUsed || null,
       })
       .select()
       .single()

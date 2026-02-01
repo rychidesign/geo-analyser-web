@@ -1,5 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import type { LLMConfig, LLMResponse } from './types'
+import { GoogleGenerativeAI, Content } from '@google/generative-ai'
+import type { LLMConfig, LLMResponse, ConversationMessage } from './types'
 
 // Map our model IDs to actual Google AI API model names
 const MODEL_MAP: Record<string, string> = {
@@ -18,7 +18,8 @@ const API_TIMEOUT_MS = 22000
 export async function callGoogle(
   config: LLMConfig,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  conversationHistory?: ConversationMessage[]
 ): Promise<LLMResponse> {
   const genAI = new GoogleGenerativeAI(config.apiKey)
   
@@ -38,7 +39,22 @@ export async function callGoogle(
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
   
   try {
-    const result = await model.generateContent(userPrompt)
+    let result
+    
+    // If we have conversation history, use chat mode
+    if (conversationHistory && conversationHistory.length > 0) {
+      // Convert to Google's format
+      const history: Content[] = conversationHistory.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }],
+      }))
+      
+      const chat = model.startChat({ history })
+      result = await chat.sendMessage(userPrompt)
+    } else {
+      result = await model.generateContent(userPrompt)
+    }
+    
     clearTimeout(timeoutId)
     
     const response = result.response

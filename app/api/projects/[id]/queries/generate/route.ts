@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { TABLES } from '@/lib/db/schema'
-import { callLLM } from '@/lib/llm'
-import type { LLMProvider, LLMModel } from '@/lib/llm/types'
+import { callAI, getCheapestEvaluationModel, getModelInfo } from '@/lib/ai'
+import { calculateDynamicCost } from '@/lib/credits'
 
 const GENERATION_PROMPT = `You are an expert in GEO (Generative Engine Optimization). Generate test queries that real people would ask an AI assistant.
 
@@ -86,42 +86,14 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Get helper model settings
-    const { data: helperSettings } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('provider', '_helpers')
-      .single()
-
-    const queryGenerationModel = (helperSettings?.model || 'gpt-5-mini') as LLMModel
+    // Use project-level query generation model or default to cheapest
+    let modelToUse = project.query_generation_model || getCheapestEvaluationModel()
     
-    // Determine provider from model name
-    const getProviderFromModel = (model: string): LLMProvider => {
-      if (model.startsWith('gpt')) return 'openai'
-      if (model.startsWith('claude')) return 'anthropic'
-      if (model.startsWith('gemini')) return 'google'
-      return 'openai'
-    }
-
-    const provider = getProviderFromModel(queryGenerationModel)
-    const model = queryGenerationModel
-
-    // Get API key for the provider
-    const { data: providerSettings } = await supabase
-      .from('user_settings')
-      .select('encrypted_api_key')
-      .eq('user_id', user.id)
-      .eq('provider', provider)
-      .single()
-
-    const apiKey = providerSettings?.encrypted_api_key
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: `No API key configured for ${provider}. Please add an API key in Settings.` },
-        { status: 400 }
-      )
+    // Validate model exists
+    const modelInfo = getModelInfo(modelToUse)
+    if (!modelInfo) {
+      console.warn(`[Generate] Unknown model ${modelToUse}, using default`)
+      modelToUse = getCheapestEvaluationModel()
     }
 
     // Build the prompt - intentionally NOT including brand name to keep queries generic
@@ -131,12 +103,14 @@ export async function POST(
       .replace('{language}', project.language || 'English')
       .replace('{count}', count.toString())
 
-    // Call LLM
-    const response = await callLLM(
-      { provider, model, apiKey },
-      'You are an expert in GEO (Generative Engine Optimization) and SEO.',
-      prompt
-    )
+    // Call AI using new module
+    const response = await callAI({
+      model: modelToUse,
+      systemPrompt: 'You are an expert in GEO (Generative Engine Optimization) and SEO.',
+      userPrompt: prompt,
+      maxOutputTokens: 2048,
+      temperature: 0.8, // Higher temperature for more creative/varied queries
+    })
 
     if (!response.content) {
       return NextResponse.json(
@@ -206,6 +180,13 @@ export async function POST(
       )
     }
 
+    // Calculate cost with dynamic pricing
+    const costCents = await calculateDynamicCost(
+      modelToUse,
+      response.inputTokens,
+      response.outputTokens
+    )
+
     // Update monthly usage for the generation cost
     const now = new Date()
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -216,8 +197,8 @@ export async function POST(
       .select()
       .eq('user_id', user.id)
       .eq('month', month)
-      .eq('provider', provider)
-      .eq('model', model)
+      .eq('provider', response.provider)
+      .eq('model', modelToUse)
       .eq('usage_type', 'generation')
       .single()
 
@@ -227,7 +208,7 @@ export async function POST(
         .update({
           total_input_tokens: existing.total_input_tokens + (response.inputTokens || 0),
           total_output_tokens: existing.total_output_tokens + (response.outputTokens || 0),
-          total_cost_usd: existing.total_cost_usd + (response.costUsd || 0),
+          total_cost_usd: existing.total_cost_usd + (costCents / 100),
           scan_count: existing.scan_count + 1,
         })
         .eq('id', existing.id)
@@ -237,12 +218,12 @@ export async function POST(
         .insert({
           user_id: user.id,
           month,
-          provider,
-          model,
+          provider: response.provider,
+          model: modelToUse,
           usage_type: 'generation',
           total_input_tokens: response.inputTokens || 0,
           total_output_tokens: response.outputTokens || 0,
-          total_cost_usd: response.costUsd || 0,
+          total_cost_usd: costCents / 100,
           scan_count: 1,
         })
     }
@@ -250,9 +231,10 @@ export async function POST(
     return NextResponse.json({
       queries: insertedQueries,
       generation: {
-        provider,
-        model,
-        cost: response.costUsd,
+        provider: response.provider,
+        model: modelToUse,
+        costUsd: costCents / 100,
+        costCents,
         inputTokens: response.inputTokens,
         outputTokens: response.outputTokens,
       }

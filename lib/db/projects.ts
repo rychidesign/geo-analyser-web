@@ -18,6 +18,61 @@ export async function getProjects(): Promise<Project[]> {
   return data || []
 }
 
+export interface ProjectWithScore extends Project {
+  latest_score: number | null
+}
+
+export async function getProjectsWithScores(): Promise<ProjectWithScore[]> {
+  const supabase = await createClient()
+  
+  // Get all projects
+  const { data: projects, error: projectsError } = await supabase
+    .from(TABLES.PROJECTS)
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (projectsError) throw projectsError
+  if (!projects || projects.length === 0) return []
+
+  // Get ALL completed scans for each project to calculate average
+  const projectIds = projects.map(p => p.id)
+  
+  const { data: allScans, error: scansError } = await supabase
+    .from(TABLES.SCANS)
+    .select('project_id, overall_score')
+    .in('project_id', projectIds)
+    .eq('status', 'completed')
+    .not('overall_score', 'is', null)
+
+  if (scansError) {
+    console.error('Error fetching scans:', scansError)
+    return projects.map(p => ({ ...p, latest_score: null }))
+  }
+
+  // Calculate average score per project
+  const scoreMap = new Map<string, { total: number; count: number }>()
+  for (const scan of allScans || []) {
+    if (scan.overall_score !== null) {
+      const existing = scoreMap.get(scan.project_id) || { total: 0, count: 0 }
+      existing.total += scan.overall_score
+      existing.count += 1
+      scoreMap.set(scan.project_id, existing)
+    }
+  }
+
+  // Merge projects with average scores (1 decimal place)
+  return projects.map(project => {
+    const scores = scoreMap.get(project.id)
+    const avgScore = scores && scores.count > 0 
+      ? Math.round(scores.total / scores.count * 10) / 10
+      : null
+    return {
+      ...project,
+      latest_score: avgScore
+    }
+  })
+}
+
 export async function getProjectById(id: string): Promise<Project | null> {
   const supabase = await createClient()
   
@@ -181,7 +236,7 @@ export async function getProjectStats(userId: string) {
     .not('overall_score', 'is', null)
 
   const avgScore = avgData && avgData.length > 0
-    ? Math.round(avgData.reduce((sum, s) => sum + (s.overall_score || 0), 0) / avgData.length)
+    ? Math.round(avgData.reduce((sum, s) => sum + (s.overall_score || 0), 0) / avgData.length * 10) / 10
     : 0
 
   // Get scans this month

@@ -3,6 +3,10 @@ import { getProjectStats } from '@/lib/db/projects'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { BarChart3, FolderOpen, Zap, TrendingUp } from 'lucide-react'
 
+// Disable caching - always fetch fresh data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,15 +20,15 @@ export default async function DashboardPage() {
   }
 
   return (
-    <>
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="bg-zinc-950 border-b border-zinc-800/50 lg:shrink-0 px-4 py-4 lg:px-8">
+      <div className="bg-zinc-950 border-b border-zinc-800/50 shrink-0 px-4 py-4 lg:px-8">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="text-sm text-zinc-400">Welcome back, {user?.email}</p>
       </div>
 
       {/* Content */}
-      <div className="px-4 py-4 lg:px-8 lg:flex-1 lg:overflow-y-auto">
+      <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-8">
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -109,6 +113,6 @@ export default async function DashboardPage() {
         </Card>
       )}
       </div>
-    </>
+    </div>
   )
 }

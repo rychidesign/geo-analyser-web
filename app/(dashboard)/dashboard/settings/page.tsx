@@ -1,39 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Loader2, Save, Key, Check, Cpu } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import Image from 'next/image'
+import { 
+  Loader2, 
+  Save, 
+  Clock, 
+  User, 
+  Mail, 
+  Lock, 
+  Camera, 
+  Trash2,
+  Check,
+  AlertCircle
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-
-interface ApiKeyConfig {
-  provider: string
-  label: string
-  placeholder: string
-  key: string
-  hasKey: boolean
-}
-
-const ALL_MODELS = [
-  { value: 'gpt-5-mini', label: 'GPT-5 Mini (cheapest)', provider: 'openai' },
-  { value: 'gpt-5-2', label: 'GPT-5.2', provider: 'openai' },
-  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (cheapest)', provider: 'anthropic' },
-  { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'anthropic' },
-  { value: 'claude-opus-4-5', label: 'Claude Opus 4.5', provider: 'anthropic' },
-  { value: 'gemini-2-5-flash-lite', label: 'Gemini 2.5 Flash Lite (cheapest)', provider: 'google' },
-  { value: 'gemini-2-5-flash', label: 'Gemini 2.5 Flash', provider: 'google' },
-  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash Preview', provider: 'google' },
-]
-
-const DEFAULT_CONFIGS: ApiKeyConfig[] = [
-  { provider: 'openai', label: 'OpenAI', placeholder: 'sk-...', key: '', hasKey: false },
-  { provider: 'anthropic', label: 'Anthropic', placeholder: 'sk-ant-...', key: '', hasKey: false },
-  { provider: 'google', label: 'Google AI', placeholder: 'AIza...', key: '', hasKey: false },
-]
+import { cn } from '@/lib/utils'
 
 const TIMEZONES = [
   { value: 'Europe/Prague', label: 'Prague (CET/CEST, UTC+1/+2)' },
@@ -47,43 +33,49 @@ const TIMEZONES = [
   { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
 ]
 
+type Message = {
+  type: 'success' | 'error'
+  text: string
+}
+
 export default function SettingsPage() {
-  const [configs, setConfigs] = useState<ApiKeyConfig[]>(DEFAULT_CONFIGS)
-  const [saving, setSaving] = useState<string | null>(null)
-  const [savingHelpers, setSavingHelpers] = useState(false)
-  const [savingProfile, setSavingProfile] = useState(false)
   const [loading, setLoading] = useState(true)
+  
+  // Account state
+  const [email, setEmail] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [savingEmail, setSavingEmail] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Password state
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
+  
+  // Profile state
   const [timezone, setTimezone] = useState('Europe/Prague')
-  const [queryGenerationModel, setQueryGenerationModel] = useState('gpt-5-mini')
-  const [evaluationModel, setEvaluationModel] = useState('gpt-5-mini')
+  const [savingProfile, setSavingProfile] = useState(false)
+  
+  // Messages
+  const [accountMessage, setAccountMessage] = useState<Message | null>(null)
+  const [passwordMessage, setPasswordMessage] = useState<Message | null>(null)
 
   useEffect(() => {
     loadSettings()
   }, [])
 
-  const getAvailableModels = () => {
-    const configuredProviders = configs.filter(c => c.hasKey).map(c => c.provider)
-    return ALL_MODELS.filter(m => configuredProviders.includes(m.provider))
-  }
-
   const loadSettings = async () => {
     try {
-      // Load API key settings
-      const res = await fetch('/api/settings')
-      if (res.ok) {
-        const settings = await res.json()
-        setConfigs(prev => prev.map(config => {
-          const saved = settings.find((s: any) => s.provider === config.provider)
-          return saved ? { ...config, hasKey: saved.has_key, key: '' } : config
-        }))
-      }
-
-      // Load helper model settings
-      const helperRes = await fetch('/api/settings/helpers')
-      if (helperRes.ok) {
-        const helperSettings = await helperRes.json()
-        setQueryGenerationModel(helperSettings.query_generation_model || 'gpt-5-mini')
-        setEvaluationModel(helperSettings.evaluation_model || 'gpt-5-mini')
+      // Load account info
+      const accountRes = await fetch('/api/settings/account')
+      if (accountRes.ok) {
+        const data = await accountRes.json()
+        setEmail(data.email || '')
+        setNewEmail(data.email || '')
+        setAvatarUrl(data.avatarUrl)
       }
 
       // Load profile settings (timezone)
@@ -99,30 +91,117 @@ export default function SettingsPage() {
     }
   }
 
-  const updateConfig = (provider: string, value: string) => {
-    setConfigs(prev => prev.map(c => c.provider === provider ? { ...c, key: value } : c))
+  // Avatar handlers
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click()
   }
 
-  const saveConfig = async (provider: string) => {
-    const config = configs.find(c => c.provider === provider)
-    if (!config) return
-    setSaving(provider)
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingAvatar(true)
     try {
-      const res = await fetch('/api/settings', {
+      const formData = new FormData()
+      formData.append('avatar', file)
+
+      const res = await fetch('/api/settings/avatar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, api_key: config.key || undefined }),
+        body: formData,
       })
+
+      const data = await res.json()
       if (res.ok) {
-        const saved = await res.json()
-        setConfigs(prev => prev.map(c => 
-          c.provider === provider ? { ...c, hasKey: saved.has_key, key: '' } : c
-        ))
+        setAvatarUrl(data.avatarUrl)
+        setAccountMessage({ type: 'success', text: 'Avatar updated successfully' })
+      } else {
+        setAccountMessage({ type: 'error', text: data.error || 'Failed to upload avatar' })
       }
     } catch (error) {
-      console.error('Error saving config:', error)
+      setAccountMessage({ type: 'error', text: 'Failed to upload avatar' })
     } finally {
-      setSaving(null)
+      setUploadingAvatar(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleAvatarDelete = async () => {
+    setUploadingAvatar(true)
+    try {
+      const res = await fetch('/api/settings/avatar', { method: 'DELETE' })
+      if (res.ok) {
+        setAvatarUrl(null)
+        setAccountMessage({ type: 'success', text: 'Avatar removed' })
+      }
+    } catch (error) {
+      setAccountMessage({ type: 'error', text: 'Failed to remove avatar' })
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  // Email handler
+  const saveEmail = async () => {
+    if (newEmail === email) return
+    
+    setSavingEmail(true)
+    setAccountMessage(null)
+    try {
+      const res = await fetch('/api/settings/account', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail }),
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        setAccountMessage({ type: 'success', text: data.message })
+      } else {
+        setAccountMessage({ type: 'error', text: data.error })
+      }
+    } catch (error) {
+      setAccountMessage({ type: 'error', text: 'Failed to update email' })
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
+  // Password handler
+  const savePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'Passwords do not match' })
+      return
+    }
+    
+    if (newPassword.length < 8) {
+      setPasswordMessage({ type: 'error', text: 'Password must be at least 8 characters' })
+      return
+    }
+
+    setSavingPassword(true)
+    setPasswordMessage(null)
+    try {
+      const res = await fetch('/api/settings/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        setPasswordMessage({ type: 'success', text: 'Password updated successfully' })
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+      } else {
+        setPasswordMessage({ type: 'error', text: data.error })
+      }
+    } catch (error) {
+      setPasswordMessage({ type: 'error', text: 'Failed to update password' })
+    } finally {
+      setSavingPassword(false)
     }
   }
 
@@ -141,24 +220,6 @@ export default function SettingsPage() {
     }
   }
 
-  const saveHelperModels = async () => {
-    setSavingHelpers(true)
-    try {
-      await fetch('/api/settings/helpers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query_generation_model: queryGenerationModel,
-          evaluation_model: evaluationModel,
-        }),
-      })
-    } catch (error) {
-      console.error('Error saving helper models:', error)
-    } finally {
-      setSavingHelpers(false)
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -167,149 +228,227 @@ export default function SettingsPage() {
     )
   }
 
-  const availableModels = getAvailableModels()
-
   return (
     <>
       {/* Header */}
       <div className="border-b lg:shrink-0 px-4 py-4 lg:px-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Configure your LLM provider API keys and helper models.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
+        <p className="text-sm text-muted-foreground">Manage your account and preferences.</p>
       </div>
 
       {/* Content */}
       <div className="px-4 py-4 lg:px-8 space-y-8 lg:flex-1 lg:overflow-y-auto">
 
-        {/* Helper Models Section */}
+        {/* Account Section */}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold">Helper Models</h2>
+            <User className="w-5 h-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">Account</h2>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>AI Helper Configuration</CardTitle>
+              <CardTitle>Profile Picture</CardTitle>
               <CardDescription>
-                Select which models to use for generating queries and evaluating scan results.
+                Click on the avatar to upload a new profile picture. Max 2MB.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {availableModels.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Configure at least one API key below to select helper models.</p>
-              ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="query-model">Query Generation Model</Label>
-                      <Select value={queryGenerationModel} onValueChange={setQueryGenerationModel}>
-                        <SelectTrigger id="query-model">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableModels.map(m => (
-                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Used when generating test queries with AI</p>
-                    </div>
+              <div className="flex items-center gap-6">
+                <div className="relative group">
+                  <button
+                    onClick={handleAvatarClick}
+                    disabled={uploadingAvatar}
+                    className="relative w-24 h-24 rounded-full overflow-hidden bg-zinc-800 border-2 border-zinc-700 hover:border-zinc-600 transition-colors"
+                  >
+                    {avatarUrl ? (
+                      <Image
+                        src={avatarUrl}
+                        alt="Avatar"
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl font-semibold text-zinc-500">
+                        {email.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="eval-model">Evaluation Model</Label>
-                      <Select value={evaluationModel} onValueChange={setEvaluationModel}>
-                        <SelectTrigger id="eval-model">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableModels.map(m => (
-                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Used to analyze and score AI responses</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button onClick={saveHelperModels} disabled={savingHelpers}>
-                      {savingHelpers ? (
-                        <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...</>
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      {uploadingAvatar ? (
+                        <Loader2 className="w-6 h-6 animate-spin text-white" />
                       ) : (
-                        <><Save className="w-4 h-4 mr-2" /> Save Helper Settings</>
+                        <Camera className="w-6 h-6 text-white" />
                       )}
-                    </Button>
-                  </div>
+                    </div>
+                  </button>
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
                 </div>
-              )}
+                
+                {avatarUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAvatarDelete}
+                    disabled={uploadingAvatar}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Remove
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
-        </div>
-
-        <Separator />
-
-        {/* API Keys Section */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Key className="w-5 h-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold">API Keys</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {configs.map((config) => (
-              <Card key={config.provider}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{config.label}</CardTitle>
-                    {config.hasKey && (
-                      <Badge className="gap-1 border-0 bg-emerald-500/10 text-emerald-400">
-                        <Check className="w-3 h-3 text-emerald-400" /> Configured
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`key-${config.provider}`}>API Key</Label>
-                    <Input
-                      id={`key-${config.provider}`}
-                      type="password"
-                      placeholder={config.hasKey ? '••••••••' : config.placeholder}
-                      value={config.key}
-                      onChange={(e) => updateConfig(config.provider, e.target.value)}
-                    />
-                    {config.hasKey && !config.key && (
-                      <p className="text-xs text-muted-foreground">Leave empty to keep existing key</p>
-                    )}
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={() => saveConfig(config.provider)}
-                      disabled={saving === config.provider}
-                    >
-                      {saving === config.provider ? (
-                        <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...</>
-                      ) : (
-                        <><Save className="w-4 h-4 mr-2" /> Save</>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* User Profile Section */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">User Profile</h2>
 
           <Card>
             <CardHeader>
-              <CardTitle>Timezone</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                Email Address
+              </CardTitle>
+              <CardDescription>
+                Change your email address. You will need to confirm the new email.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {accountMessage && (
+                  <div className={cn(
+                    'flex items-center gap-2 p-3 rounded-lg text-sm',
+                    accountMessage.type === 'success' 
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                  )}>
+                    {accountMessage.type === 'success' ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4" />
+                    )}
+                    {accountMessage.text}
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="your@email.com"
+                  />
+                </div>
+                
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={saveEmail} 
+                    disabled={savingEmail || newEmail === email}
+                  >
+                    {savingEmail ? (
+                      <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...</>
+                    ) : (
+                      <><Save className="w-4 h-4 mr-2" /> Update Email</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="w-4 h-4" />
+                Change Password
+              </CardTitle>
+              <CardDescription>
+                Update your password. Use a strong password with at least 8 characters.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {passwordMessage && (
+                  <div className={cn(
+                    'flex items-center gap-2 p-3 rounded-lg text-sm',
+                    passwordMessage.type === 'success' 
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                  )}>
+                    {passwordMessage.type === 'success' ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4" />
+                    )}
+                    {passwordMessage.text}
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="current-password">Current Password</Label>
+                  <Input
+                    id="current-password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">New Password</Label>
+                    <Input
+                      id="new-password"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Confirm New Password</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={savePassword} 
+                    disabled={savingPassword || !newPassword || !confirmPassword}
+                  >
+                    {savingPassword ? (
+                      <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...</>
+                    ) : (
+                      <><Save className="w-4 h-4 mr-2" /> Update Password</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Timezone
+              </CardTitle>
               <CardDescription>
                 Select your timezone for displaying dates and times correctly.
               </CardDescription>

@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { TABLES } from '@/lib/db/schema'
+import { TABLES, type ScanMetrics } from '@/lib/db/schema'
+import { consumeReservation, calculateDynamicCost, usdToCents } from '@/lib/credits'
+import { 
+  calculateAggregatedResilienceScore, 
+  type ResultForResilience 
+} from '@/lib/scan/follow-up-templates'
 
 export const runtime = 'edge'
 export const maxDuration = 10
 
 /**
- * Mark scan as completed and calculate final metrics
+ * Mark scan as completed and calculate final metrics using Resilience Scoring
  */
 export async function POST(
   request: NextRequest,
@@ -21,11 +26,22 @@ export async function POST(
     }
 
     const { id: projectId, scanId } = await params
+    const body = await request.json().catch(() => ({}))
+    const { reservationId } = body
+
+    // Get project settings for follow-up configuration
+    const { data: project } = await supabase
+      .from(TABLES.PROJECTS)
+      .select('follow_up_enabled')
+      .eq('id', projectId)
+      .single()
+    
+    const followUpEnabled = project?.follow_up_enabled ?? false
 
     // Verify scan ownership
     const { data: scan } = await supabase
       .from(TABLES.SCANS)
-      .select('id, status')
+      .select('id, status, total_cost_usd')
       .eq('id', scanId)
       .eq('project_id', projectId)
       .eq('user_id', user.id)
@@ -38,24 +54,28 @@ export async function POST(
     // Get all results for this scan to calculate metrics
     const { data: results } = await supabase
       .from(TABLES.SCAN_RESULTS)
-      .select('metrics_json')
+      .select('query_text, model, follow_up_level, metrics_json')
       .eq('scan_id', scanId)
+      .order('query_text')
+      .order('model')
+      .order('follow_up_level')
 
-    // Calculate aggregated metrics
+    // Calculate aggregated metrics (for backwards compatibility)
     let totalVisibility = 0
     let totalSentiment = 0
     let sentimentCount = 0  // Only count when visibility > 0
     let totalRanking = 0
     let rankingCount = 0    // Only count when ranking > 0 (brand in list)
-    let totalRecommendation = 0
     let validResults = 0
+
+    // Group results by query+model for resilience calculation
+    const chainMap = new Map<string, ResultForResilience[]>()
 
     if (results && results.length > 0) {
       for (const result of results) {
         if (result.metrics_json) {
-          const metrics = result.metrics_json as any
+          const metrics = result.metrics_json as ScanMetrics
           totalVisibility += metrics.visibility_score || 0
-          totalRecommendation += metrics.recommendation_score || 0
           validResults++
           
           // Only include sentiment when visibility > 0
@@ -69,22 +89,41 @@ export async function POST(
             totalRanking += metrics.ranking_score
             rankingCount++
           }
+          
+          // Build chain for resilience scoring
+          const chainKey = `${result.query_text}|||${result.model}`
+          const chainResults = chainMap.get(chainKey) || []
+          chainResults.push({
+            follow_up_level: result.follow_up_level || 0,
+            recommendation_score: metrics.recommendation_score || 0,
+            visibility_score: metrics.visibility_score || 0,
+            sentiment_score: metrics.sentiment_score,
+            brand_mentioned: (metrics.visibility_score || 0) > 0,
+          })
+          chainMap.set(chainKey, chainResults)
         }
       }
     }
 
-    // Calculate final averages
+    // Calculate final averages (legacy metrics)
     const avgVisibility = validResults > 0 ? Math.round(totalVisibility / validResults) : 0
     const avgSentiment = sentimentCount > 0 ? Math.round(totalSentiment / sentimentCount) : null
     const avgRanking = rankingCount > 0 ? Math.round(totalRanking / rankingCount) : null
-    const overallScore = validResults > 0 ? Math.round(totalRecommendation / validResults) : 0
+
+    // Calculate Resilience Score
+    const chainResults = Array.from(chainMap.values())
+    const resilienceScore = calculateAggregatedResilienceScore(chainResults, followUpEnabled)
 
     // Update scan status and metrics
     const { error: updateError } = await supabase
       .from(TABLES.SCANS)
       .update({
         status: 'completed',
-        overall_score: overallScore,
+        overall_score: resilienceScore.final_score,
+        initial_score: resilienceScore.initial_score,
+        conversational_bonus: resilienceScore.conversational_bonus,
+        brand_persistence: resilienceScore.brand_persistence,
+        follow_up_active: resilienceScore.follow_up_active,
         avg_visibility: avgVisibility,
         avg_sentiment: avgSentiment,
         avg_ranking: avgRanking,
@@ -185,16 +224,52 @@ export async function POST(
       }
     }
 
-    console.log(`[Complete Scan] Scan ${scanId} marked as completed with score ${overallScore}%`)
+    // Process credit reservation if provided
+    let creditResult = null
+    if (reservationId) {
+      // Get total cost from scan results
+      const { data: costData } = await supabase
+        .from(TABLES.SCAN_RESULTS)
+        .select('cost_usd')
+        .eq('scan_id', scanId)
+      
+      const totalCostUsd = (costData || []).reduce((sum, r) => sum + (r.cost_usd || 0), 0)
+      
+      // Also add evaluation costs (we need to recalculate with markup)
+      // For now, we'll use the stored cost which already includes our pricing
+      const totalCostCents = Math.ceil(totalCostUsd * 100)
+      
+      // Consume the reservation with actual cost
+      creditResult = await consumeReservation(reservationId, totalCostCents, scanId)
+      
+      if (creditResult.success) {
+        console.log(`[Complete Scan] Consumed reservation ${reservationId}: charged ${totalCostCents} cents, refunded ${creditResult.refunded} cents`)
+      } else {
+        console.error(`[Complete Scan] Failed to consume reservation: ${creditResult.error}`)
+      }
+    }
+
+    const bonusStr = resilienceScore.conversational_bonus !== 0 
+      ? ` (base: ${resilienceScore.initial_score}%, bonus: ${resilienceScore.conversational_bonus > 0 ? '+' : ''}${resilienceScore.conversational_bonus}%)`
+      : ''
+    console.log(`[Complete Scan] Scan ${scanId} marked as completed with score ${resilienceScore.final_score}%${bonusStr}`)
 
     return NextResponse.json({ 
       success: true,
       metrics: {
-        overallScore,
+        overallScore: resilienceScore.final_score,
+        initialScore: resilienceScore.initial_score,
+        conversationalBonus: resilienceScore.conversational_bonus,
+        brandPersistence: resilienceScore.brand_persistence,
+        followUpActive: resilienceScore.follow_up_active,
         avgVisibility,
         avgSentiment,
         avgRanking,
-      }
+      },
+      credits: creditResult ? {
+        charged: true,
+        refunded: (creditResult.refunded || 0) / 100,
+      } : undefined
     })
   } catch (error: any) {
     console.error('[Complete Scan] Error:', error)

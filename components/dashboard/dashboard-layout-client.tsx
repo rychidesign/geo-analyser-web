@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { DashboardSidebar } from './sidebar'
 import { MobileHeader } from './mobile-header'
+import { AnnouncementBar } from './announcement-bar'
 import { ScanProvider } from '@/lib/scan/scan-context'
 import { ToastProvider } from '@/components/ui/toast'
 import type { User } from '@supabase/supabase-js'
@@ -40,7 +41,8 @@ export function DashboardLayoutClient({ user, children }: DashboardLayoutClientP
           )}
 
           {/* Main Content */}
-          <main className="flex-1 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col">
+          <main className="flex-1 flex flex-col overflow-hidden">
+            <AnnouncementBar />
             {children}
           </main>
         </div>

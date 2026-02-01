@@ -1,16 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getUserApiKeys } from '@/lib/db/settings'
-import { callLLM, GEO_SYSTEM_PROMPT } from '@/lib/llm'
-import type { LLMModel } from '@/lib/llm/types'
+import { callGEOQuery, callAI, getModelInfo } from '@/lib/ai'
 
 export const runtime = 'edge'
 export const maxDuration = 60  // Increased timeout for LLM calls
 
+// Check if Gateway is configured
+const USE_GATEWAY = !!process.env.AI_GATEWAY_API_KEY
+
+// System prompt for follow-up queries (avoid circular import issues)
+function getFollowUpSystemPrompt(language: string = 'en'): string {
+  const basePrompt = `You are an AI assistant helping to analyze how other AI systems discuss and recommend brands and products.
+
+When answering questions:
+- Be helpful and provide detailed, informative responses
+- If recommending products, services, or brands, be specific about names and features
+- Mention relevant websites, companies, or e-commerce platforms when appropriate
+- Provide balanced perspectives when comparing options
+- Be natural and conversational in your responses
+
+Your goal is to provide genuinely helpful information that would assist someone in making decisions about products, services, or brands.`
+
+  // Add language instruction if not English
+  if (language && language.toLowerCase() !== 'en' && !language.toLowerCase().startsWith('en')) {
+    const languageNames: Record<string, string> = {
+      cs: 'Czech (Čeština)',
+      de: 'German (Deutsch)',
+      fr: 'French (Français)',
+      es: 'Spanish (Español)',
+      pl: 'Polish (Polski)',
+      sk: 'Slovak (Slovenčina)',
+    }
+    const langName = languageNames[language.toLowerCase()] || language
+    return `${basePrompt}
+
+IMPORTANT: You MUST respond in ${langName}. All your answers should be in ${langName}.`
+  }
+  
+  return basePrompt
+}
+
+interface ConversationMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 /**
- * Thin proxy endpoint for LLM calls
- * Frontend calls this with model + query, gets back LLM response
- * This keeps the API route fast - actual LLM call happens here but we have 25s
+ * LLM call endpoint
+ * Uses Vercel AI Gateway when available, otherwise falls back to database keys
+ * Supports optional conversation history for follow-up queries
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
@@ -23,40 +61,93 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { model, query } = await request.json()
+    const { model, query, conversationHistory, language } = await request.json() as {
+      model: string
+      query: string
+      conversationHistory?: ConversationMessage[]
+      language?: string
+    }
 
     if (!model || !query) {
       return NextResponse.json({ error: 'Missing model or query' }, { status: 400 })
     }
 
-    // Get user's API keys
-    const userApiKeys = await getUserApiKeys(user.id)
-    if (!userApiKeys) {
-      return NextResponse.json({ error: 'No API keys configured' }, { status: 400 })
-    }
-
-    // Import model info dynamically to avoid loading all models
-    const { AVAILABLE_MODELS } = await import('@/lib/llm/types')
-    const modelInfo = AVAILABLE_MODELS.find(m => m.id === model)
-    
+    // Validate model exists
+    const modelInfo = getModelInfo(model)
     if (!modelInfo) {
       return NextResponse.json({ error: `Unknown model: ${model}` }, { status: 400 })
+    }
+
+    // Use Gateway mode (centralized API keys via Vercel AI Gateway)
+    if (USE_GATEWAY) {
+      const isFollowUp = conversationHistory && conversationHistory.length > 0
+      console.log(`[LLM Proxy] Calling ${model} for user ${user.id}${isFollowUp ? ' (with conversation history)' : ''}`)
+      
+      let response
+      
+      if (isFollowUp) {
+        // Build prompt with conversation history for follow-up queries
+        const historyText = conversationHistory.map(msg => 
+          `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
+        ).join('\n\n')
+        
+        const fullPrompt = `Previous conversation:\n${historyText}\n\nUser: ${query}`
+        
+        response = await callAI({
+          model,
+          systemPrompt: getFollowUpSystemPrompt(language),
+          userPrompt: fullPrompt,
+          maxOutputTokens: 1024,
+          temperature: 0.7,
+        })
+      } else {
+        // Standard single query (with language instruction if needed)
+        response = await callGEOQuery(model, query, language)
+      }
+      
+      const duration = Date.now() - startTime
+      const contentLength = response.content?.length || 0
+      console.log(`[LLM Proxy] ${model} responded in ${duration}ms (content: ${contentLength} chars)`)
+      
+      // Warn if response seems truncated or empty
+      if (contentLength === 0) {
+        console.warn(`[LLM Proxy] WARNING: Empty response from ${model}`)
+      } else if (contentLength < 50) {
+        console.warn(`[LLM Proxy] WARNING: Very short response from ${model}: ${response.content}`)
+      }
+
+      return NextResponse.json({
+        content: response.content,
+        inputTokens: response.inputTokens,
+        outputTokens: response.outputTokens,
+        duration,
+      })
+    }
+    
+    // Fallback: Use database-stored API keys
+    const { getUserApiKeys } = await import('@/lib/db/settings')
+    const { callLLM, GEO_SYSTEM_PROMPT } = await import('@/lib/llm')
+    
+    const userApiKeys = await getUserApiKeys(user.id)
+    if (!userApiKeys) {
+      return NextResponse.json({ error: 'No API keys configured. Contact admin.' }, { status: 400 })
     }
 
     const apiKeyField = `${modelInfo.provider}_api_key` as keyof typeof userApiKeys
     const apiKey = userApiKeys[apiKeyField]
 
     if (!apiKey) {
-      return NextResponse.json({ error: `No API key for ${model}` }, { status: 400 })
+      return NextResponse.json({ 
+        error: `No API key for ${modelInfo.provider}. This model requires Gateway or database API key.` 
+      }, { status: 400 })
     }
 
-    // Call LLM
-    console.log(`[LLM Proxy] Calling ${model} for user ${user.id}`)
+    console.log(`[LLM Proxy] Calling ${model} for user ${user.id} (direct API)`)
     const response = await callLLM(
       {
-        provider: modelInfo.provider,
+        provider: modelInfo.provider as any,
         apiKey: apiKey as string,
-        model: model as LLMModel,
+        model: model as any,
       },
       GEO_SYSTEM_PROMPT,
       query

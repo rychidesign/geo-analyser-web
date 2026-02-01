@@ -35,12 +35,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Scan not found' }, { status: 404 })
     }
 
-    // Get results
+    // Get results - order by query_text, model, then follow_up_level for proper grouping
     const { data: results } = await supabase
       .from(TABLES.SCAN_RESULTS)
       .select('*')
       .eq('scan_id', scanId)
-      .order('created_at', { ascending: true })
+      .order('query_text', { ascending: true })
+      .order('model', { ascending: true })
+      .order('follow_up_level', { ascending: true })
 
     return NextResponse.json({
       scan,
