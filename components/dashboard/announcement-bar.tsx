@@ -105,10 +105,11 @@ export function AnnouncementBar() {
       )}
       style={customStyles}
     >
-      <IconComponent 
-        className={cn('w-5 h-5 flex-shrink-0', !isCustom && COLOR_PRESETS[colorType].text)} 
-        style={customTextStyle}
-      />
+      <span style={customTextStyle}>
+        <IconComponent 
+          className={cn('w-5 h-5 flex-shrink-0', !isCustom && COLOR_PRESETS[colorType].text)} 
+        />
+      </span>
       
       <span 
         className={cn('text-sm', !isCustom && COLOR_PRESETS[colorType].text)}
