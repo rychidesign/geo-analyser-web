@@ -107,7 +107,7 @@ export interface Scan {
 export interface ScanResult {
   id: string
   scan_id: string
-  provider: 'openai' | 'anthropic' | 'google'
+  provider: 'openai' | 'anthropic' | 'google' | 'groq' | 'perplexity'
   model: string
   query_text: string
   ai_response_raw: string
