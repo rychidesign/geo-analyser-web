@@ -404,6 +404,6 @@ export const FOLLOW_UP_COLORS = {
   3: { name: 'F3', color: '#a855f7', bgColor: 'bg-purple-500' },       // Purple
 } as const
 
-export function getFollowUpColor(level: number): typeof FOLLOW_UP_COLORS[0] {
+export function getFollowUpColor(level: number): (typeof FOLLOW_UP_COLORS)[keyof typeof FOLLOW_UP_COLORS] {
   return FOLLOW_UP_COLORS[level as keyof typeof FOLLOW_UP_COLORS] || FOLLOW_UP_COLORS[0]
 }
