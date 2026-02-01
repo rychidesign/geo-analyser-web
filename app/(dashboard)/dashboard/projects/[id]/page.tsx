@@ -124,6 +124,8 @@ export default function ProjectPage() {
       notifiedJobsRef.current.add(currentJob.id)
       loadProject()
       showSuccess('Scan completed successfully!')
+      // Refresh credits in sidebar
+      window.dispatchEvent(new Event('credits-updated'))
       // Clear the job from context after a short delay
       setTimeout(() => clearJob(projectId), 2000)
     } else if (currentJob.status === 'failed') {
