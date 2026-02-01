@@ -22,7 +22,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    return NextResponse.json(project)
+    // Get generation costs from credit_transactions
+    const { data: transactions } = await supabase
+      .from('credit_transactions')
+      .select('amount_cents')
+      .eq('user_id', user.id)
+      .eq('reference_type', 'generation')
+      .eq('reference_id', id)
+    
+    const generationCostCents = transactions?.reduce((sum, t) => sum + Math.abs(t.amount_cents), 0) || 0
+
+    return NextResponse.json({
+      ...project,
+      generation_cost_usd: generationCostCents / 100,
+    })
   } catch (error: any) {
     console.error('Error fetching project:', error)
     return NextResponse.json(

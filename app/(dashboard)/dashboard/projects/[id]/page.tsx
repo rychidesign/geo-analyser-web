@@ -316,7 +316,7 @@ export default function ProjectPage() {
           </span>
           <span className="text-zinc-600">•</span>
           <span>
-            Spent: ${scans.reduce((sum, s) => sum + (s.total_cost_usd || 0), 0).toFixed(4)}
+            Spent: ${(scans.reduce((sum, s) => sum + (s.total_cost_usd || 0), 0) + ((project as any)?.generation_cost_usd || 0)).toFixed(4)}
           </span>
         </div>
 
