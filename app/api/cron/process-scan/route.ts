@@ -320,20 +320,19 @@ async function processScan(
           const response = await callGEOQuery(modelId, query.query_text)
           completedOperations++
           
-          if (!response.success || !response.content) {
+          if (!response.content) {
             console.log(`[Worker ${workerId}] Empty response from ${modelId} (${completedOperations}/${totalOperations})`)
             continue
           }
 
           const evalResult = await callEvaluation(
             evaluationModel,
-            query.query_text,
             response.content,
             project.brand_variations || [],
             project.domain
           )
 
-          if (!evalResult.success) continue
+          if (!evalResult.metrics) continue
 
           const modelInfo = getModelInfo(modelId)
           const queryCostCents = await calculateDynamicCost(modelId, response.inputTokens, response.outputTokens)
