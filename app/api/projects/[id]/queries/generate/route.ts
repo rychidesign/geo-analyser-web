@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { TABLES } from '@/lib/db/schema'
 import { callAI, getCheapestEvaluationModel, getModelInfo } from '@/lib/ai'
-import { calculateDynamicCost } from '@/lib/credits'
+import { calculateDynamicCost, deductCredits, getUserProfile } from '@/lib/credits'
 
 const GENERATION_PROMPT = `You are an expert in GEO (Generative Engine Optimization). Generate test queries that real people would ask an AI assistant.
 
@@ -226,6 +226,29 @@ export async function POST(
           total_cost_usd: costCents / 100,
           scan_count: 1,
         })
+    }
+
+    // Deduct credits for paid tier users
+    if (costCents > 0) {
+      const profile = await getUserProfile(user.id)
+      if (profile && profile.tier === 'paid') {
+        const deductResult = await deductCredits(user.id, costCents, {
+          description: `Query generation: ${validQueries.length} queries using ${modelToUse}`,
+          referenceType: 'generation',
+          referenceId: projectId,
+          metadata: {
+            model: modelToUse,
+            queryCount: validQueries.length,
+            inputTokens: response.inputTokens,
+            outputTokens: response.outputTokens,
+          },
+        })
+        
+        if (!deductResult.success) {
+          console.warn(`[Generate] Failed to deduct credits: ${deductResult.error}`)
+          // Don't fail the request - queries were already generated
+        }
+      }
     }
 
     return NextResponse.json({
