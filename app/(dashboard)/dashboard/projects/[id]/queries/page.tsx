@@ -218,7 +218,7 @@ export default function QueriesPage() {
       }
       
       setQueries([...queries, ...data.queries])
-      showSuccess(`Generated ${data.queries.length} queries using ${data.generation.provider} (cost: $${data.generation.cost?.toFixed(4) || '0.0000'})`)
+      showSuccess(`Generated ${data.queries.length} queries using ${data.generation.provider} (cost: $${data.generation.costUsd?.toFixed(4) || '0.0000'})`)
     } catch (err) {
       console.error('Error generating queries:', err)
       showError('Failed to generate queries. Please try again.')
