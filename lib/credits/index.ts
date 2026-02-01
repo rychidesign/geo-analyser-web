@@ -82,23 +82,48 @@ export async function getUserCreditInfo(userId: string): Promise<UserCreditInfo 
 }
 
 /**
- * Get tier limits
+ * Get tier limits with fallback defaults
  */
-export async function getTierLimits(tier: UserTier): Promise<TierLimits | null> {
-  const supabase = await createClient()
-  
-  const { data, error } = await supabase
-    .from('tier_limits')
-    .select('*')
-    .eq('tier', tier)
-    .single()
-  
-  if (error) {
-    console.error('Error fetching tier limits:', error)
-    return null
+export async function getTierLimits(tier: UserTier): Promise<TierLimits> {
+  // Default tier limits as fallback
+  const defaultLimits: TierLimits = {
+    tier,
+    max_projects: tier === 'admin' ? 99999 : tier === 'free' ? 3 : 100,
+    max_queries_per_project: tier === 'admin' ? 99999 : tier === 'free' ? 20 : 100,
+    max_scans_per_month: tier === 'admin' ? 99999 : tier === 'free' ? 10 : 1000,
+    can_use_all_models: tier !== 'free',
+    can_schedule_scans: tier !== 'free',
+    description: `${tier} tier`,
   }
   
-  return data
+  try {
+    const supabase = await createClient()
+    
+    const { data, error } = await supabase
+      .from('tier_limits')
+      .select('*')
+      .eq('tier', tier)
+      .single()
+    
+    if (error || !data) {
+      console.warn(`Using default tier limits for ${tier}:`, error?.message)
+      return defaultLimits
+    }
+    
+    // Map database columns to expected interface (handle possible column name differences)
+    return {
+      tier: data.tier || tier,
+      max_projects: data.max_projects ?? defaultLimits.max_projects,
+      max_queries_per_project: data.max_queries_per_project ?? data.max_queries_p ?? defaultLimits.max_queries_per_project,
+      max_scans_per_month: data.max_scans_per_month ?? data.max_scans_per ?? defaultLimits.max_scans_per_month,
+      can_use_all_models: data.can_use_all_models ?? (tier !== 'free'),
+      can_schedule_scans: data.can_schedule_scans ?? (tier !== 'free'),
+      description: data.description ?? defaultLimits.description,
+    }
+  } catch (err) {
+    console.error('Error fetching tier limits:', err)
+    return defaultLimits
+  }
 }
 
 /**
