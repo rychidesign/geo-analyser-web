@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getProjectById, getProjectScans } from '@/lib/db/projects'
+import { TABLES } from '@/lib/db/schema'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -23,7 +24,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const scans = await getProjectScans(id)
-    return NextResponse.json(scans)
+    
+    // Get scheduled scan history to identify which scans were scheduled
+    const { data: scheduledHistory } = await supabase
+      .from(TABLES.SCHEDULED_SCAN_HISTORY)
+      .select('scan_id')
+      .eq('project_id', id)
+      .not('scan_id', 'is', null)
+    
+    // Create a set of scan IDs that were scheduled
+    const scheduledScanIds = new Set(scheduledHistory?.map(h => h.scan_id) || [])
+    
+    // Add is_scheduled flag to each scan
+    const scansWithScheduledFlag = scans.map(scan => ({
+      ...scan,
+      is_scheduled: scheduledScanIds.has(scan.id)
+    }))
+    
+    return NextResponse.json(scansWithScheduledFlag)
   } catch (error: any) {
     console.error('Error fetching scans:', error)
     return NextResponse.json(

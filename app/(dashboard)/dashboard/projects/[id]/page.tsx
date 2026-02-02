@@ -24,7 +24,8 @@ import {
   Trash2,
   Square,
   Pause,
-  Link2
+  Link2,
+  CalendarClock
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,7 +49,7 @@ export default function ProjectPage() {
 
   const [project, setProject] = useState<Project | null>(null)
   const [queries, setQueries] = useState<ProjectQuery[]>([])
-  const [scans, setScans] = useState<Scan[]>([])
+  const [scans, setScans] = useState<(Scan & { is_scheduled?: boolean })[]>([])
   const [loading, setLoading] = useState(true)
   
   // Load more scans - persisted in sessionStorage
@@ -600,6 +601,11 @@ export default function ProjectPage() {
                           <Badge className="gap-1 border-0 bg-purple-500/10 text-purple-400">
                             <Cpu className="w-3 h-3" /> AI
                           </Badge>
+                          {scan.is_scheduled && (
+                            <Badge className="gap-1 border-0 bg-cyan-500/10 text-cyan-400" title="Scheduled scan">
+                              <CalendarClock className="w-3 h-3" /> Auto
+                            </Badge>
+                          )}
                         </div>
                         {/* Mobile: Overall Score on first row right */}
                         {scan.status === 'completed' && scan.overall_score !== null && (
