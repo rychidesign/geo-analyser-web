@@ -215,10 +215,43 @@ export async function callEvaluation(
   brandVariations: string[],
   domain: string
 ): Promise<AICallResult & { metrics?: EvaluationMetrics }> {
+  // Pre-check: Do a case-insensitive string check for brand/domain presence
+  const contentLower = content.toLowerCase()
+  const hasBrandMention = brandVariations.some(brand => 
+    contentLower.includes(brand.toLowerCase())
+  )
+  const hasDomainMention = contentLower.includes(domain.toLowerCase())
+  
+  // If neither brand nor domain is mentioned (string check), return 0 visibility immediately
+  // This prevents AI hallucination giving false positives
+  if (!hasBrandMention && !hasDomainMention) {
+    const modelInfo = getModelInfo(model)
+    return {
+      content: '{"visibility_score":0,"sentiment_score":null,"ranking_score":0,"recommendation_score":0}',
+      model,
+      provider: modelInfo?.provider || 'openai',
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      baseCostUsd: 0,
+      finishReason: 'pre_check',
+      durationMs: 0,
+      metrics: {
+        visibility_score: 0,
+        sentiment_score: null,
+        ranking_score: 0,
+        recommendation_score: 0,
+      }
+    }
+  }
+
   const evaluationPrompt = `Analyze the following AI response and evaluate how well it mentions and recommends the brand.
 
-Brand names: ${brandVariations.join(', ')}
-Domain: ${domain}
+BRAND NAMES TO LOOK FOR (exact matches only): ${brandVariations.join(', ')}
+DOMAIN TO LOOK FOR: ${domain}
+
+IMPORTANT: Only count EXACT brand name matches. Generic phrases that happen to contain similar words do NOT count.
+For example, if the brand is "Vkontextu", the Czech phrase "v kontextu" (meaning "in context") does NOT count as a brand mention.
 
 AI Response to analyze:
 """
@@ -228,9 +261,10 @@ ${content}
 Evaluate the response on these metrics (return scores 0-100):
 
 1. **Visibility Score** (0-100): Combined brand + domain presence
-   - Brand mentioned = 50 points
-   - Domain mentioned = 50 points
+   - EXACT brand name mentioned = 50 points
+   - Domain (${domain}) mentioned = 50 points
    - Both = 100, one = 50, neither = 0
+   - Generic phrases that are NOT the brand name = 0 points
 
 2. **Sentiment Score** (0-100 or null): What's the sentiment toward the brand?
    - If visibility_score is 0 (neither brand nor domain mentioned), return null
