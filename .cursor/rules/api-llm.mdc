@@ -1,0 +1,197 @@
+# API Routes & LLM Integration
+
+## API Route Structure
+
+```
+app/api/
+├── admin/                    # Admin-only endpoints
+│   ├── pricing/              # Pricing management
+│   ├── tiers/                # Tier limits management
+│   └── users/                # User management
+├── announcements/            # System announcements
+├── credits/                  # Credit operations
+│   ├── balance/              # Get balance
+│   └── transactions/         # Transaction history
+├── cron/                     # Scheduled jobs
+│   └── scheduled-scans/      # Weekly scan automation
+├── llm/                      # LLM metadata
+│   └── route.ts              # Available models list
+├── models/                   # Model info endpoint
+├── projects/                 # Project CRUD
+│   └── [id]/
+│       ├── queries/          # Project queries
+│       │   └── generate/     # AI query generation
+│       ├── scan/             # Start project scan
+│       └── duplicate/        # Clone project
+├── scan/                     # Scan operations
+│   ├── start/                # Start new scan
+│   └── [id]/                 # Scan status/results
+└── settings/                 # User settings (API keys)
+```
+
+## LLM Integration Architecture
+
+### ⚠️ Two Separate Systems
+
+#### 1. User Scans (`lib/llm/*`)
+**Purpose**: Execute scans using user's own API keys
+
+**Files**:
+- `lib/llm/index.ts` - Main entry point, routes to providers
+- `lib/llm/openai.ts` - OpenAI SDK integration
+- `lib/llm/anthropic.ts` - Anthropic SDK integration
+- `lib/llm/google.ts` - Google AI SDK integration
+- `lib/llm/groq.ts` - Groq SDK integration
+- `lib/llm/perplexity.ts` - Perplexity SDK integration
+- `lib/llm/types.ts` - Types and model definitions ⚠️ PROTECTED
+
+**Usage**:
+```typescript
+import { callLLM } from '@/lib/llm'
+
+const result = await callLLM(
+  { provider: 'openai', apiKey: userApiKey, model: 'gpt-5-mini' },
+  systemPrompt,
+  userPrompt,
+  conversationHistory  // Optional for follow-ups
+)
+```
+
+#### 2. Internal AI Operations (`lib/ai/*`)
+**Purpose**: Query generation, AI evaluation (uses app's API keys via Vercel AI Gateway)
+
+**File**: `lib/ai/providers.ts`
+
+**Usage**:
+```typescript
+import { getProviderClient } from '@/lib/ai/providers'
+
+const { client, modelId } = getProviderClient('gpt-5-mini')
+// Uses Vercel AI Gateway if configured, falls back to direct API
+```
+
+### Model Configuration ⚠️ PROTECTED FILES
+
+**DO NOT MODIFY without explicit permission:**
+
+1. `lib/llm/types.ts`:
+   - `LLMModel` type - all model IDs
+   - `AVAILABLE_MODELS` array - model metadata
+   - `MODEL_PRICING` - cost per 1M tokens
+   - `DEFAULT_MODELS` - defaults per provider
+
+2. `lib/ai/providers.ts`:
+   - `AVAILABLE_MODELS` array (duplicate, needs consolidation)
+   - Gateway model mappings
+   - Provider client configuration
+
+3. Provider files (`lib/llm/openai.ts`, etc.):
+   - `MODEL_MAP` - maps our IDs to actual API model names
+
+### Provider-Specific Notes
+
+#### OpenAI
+```typescript
+// Model mapping
+'gpt-5-2' → 'gpt-5.2'
+'gpt-5-mini' → 'gpt-5-mini'
+'gpt-5-nano' → 'gpt-5-nano'
+
+// Special: gpt-5-nano needs higher token limit (chain-of-thought)
+const maxTokens = apiModel.includes('nano') ? 8000 : 2000
+```
+
+#### Anthropic
+```typescript
+// Uses model aliases (auto-update to latest)
+'claude-opus-4-5' → 'claude-opus-4-5'
+'claude-sonnet-4-5' → 'claude-sonnet-4-5'
+'claude-haiku-4-5' → 'claude-haiku-4-5'
+```
+
+#### Google
+```typescript
+// Model mapping (hyphens to dots for API)
+'gemini-3-flash-preview' → 'gemini-3-flash-preview'
+'gemini-2-5-flash' → 'gemini-2.5-flash'
+'gemini-2-5-flash-lite' → 'gemini-2.5-flash-lite'
+```
+
+## Timeout Handling
+
+All LLM calls have **22 second timeout** (Vercel Hobby limit is 25s):
+
+```typescript
+const API_TIMEOUT_MS = 22000
+
+// OpenAI
+const client = new OpenAI({
+  apiKey: config.apiKey,
+  timeout: API_TIMEOUT_MS,
+  maxRetries: 0,
+})
+
+// Google - uses AbortController
+const controller = new AbortController()
+const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+```
+
+## Cost Calculation
+
+```typescript
+import { calculateCost } from '@/lib/llm/types'
+
+// Returns cost in USD
+const cost = calculateCost(modelId, inputTokens, outputTokens)
+
+// Or use dynamic pricing from database
+import { calculateDynamicCost } from '@/lib/credits'
+const costCents = await calculateDynamicCost(modelId, inputTokens, outputTokens)
+```
+
+## Scan Execution Flow
+
+```typescript
+// lib/scan/engine.ts - runScan()
+
+1. Create scan record (status: 'running')
+2. For each query:
+   For each model:
+     a. Check queue status (pause/cancel)
+     b. Get user's API key for provider
+     c. Call LLM: callLLM(config, systemPrompt, query)
+     d. Evaluate response with AI evaluation
+     e. Save ScanResult with metrics
+     f. If follow-ups enabled:
+        - Generate follow-up question
+        - Call LLM with conversation history
+        - Repeat for follow_up_depth levels
+     g. Update progress
+3. Calculate aggregated metrics
+4. Update scan (status: 'completed')
+5. Consume credit reservation
+```
+
+## Query Generation
+
+```typescript
+// POST /api/projects/[id]/queries/generate
+
+// Uses project's query_generation_model (default: gpt-5-mini)
+// Generates queries based on:
+// - Brand variations
+// - Target keywords
+// - Selected language
+// - Query type (informational, transactional, comparison)
+```
+
+## AI Evaluation
+
+```typescript
+// Uses project's evaluation_model (default: gpt-5-mini)
+// Evaluates each LLM response for:
+// - visibility_score (0-100): Brand/domain presence
+// - sentiment_score (0-100): Sentiment when mentioned
+// - ranking_score (0-100): Position in recommendations
+// - recommendation_score (0-100): Overall recommendation strength
+```

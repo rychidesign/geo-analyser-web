@@ -1,0 +1,235 @@
+# Code Conventions & Patterns
+
+## TypeScript
+
+### Strict Mode
+Project uses strict TypeScript. Always:
+- Define explicit types for function parameters and returns
+- Avoid `any` - use `unknown` if type is truly unknown
+- Use type guards for runtime checks
+
+### Naming Conventions
+```typescript
+// Variables and functions: camelCase
+const projectName = 'test'
+function calculateCost() {}
+
+// Types and interfaces: PascalCase
+interface UserProfile {}
+type ScanStatus = 'running' | 'completed'
+
+// Constants: UPPER_SNAKE_CASE
+const API_TIMEOUT_MS = 22000
+const TABLES = { PROJECTS: 'projects' }
+
+// Files: kebab-case
+// scan-engine.ts, project-settings.tsx
+```
+
+### Imports Order
+```typescript
+// 1. React/Next.js
+import { useState } from 'react'
+import { NextRequest } from 'next/server'
+
+// 2. External libraries
+import { createClient } from '@supabase/supabase-js'
+
+// 3. Internal modules (absolute imports with @/)
+import { TABLES } from '@/lib/db/schema'
+import { Button } from '@/components/ui/button'
+
+// 4. Types (if separate)
+import type { Project } from '@/lib/db/schema'
+```
+
+## React Components
+
+### Component Structure
+```tsx
+// 1. Imports
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+
+// 2. Types
+interface ProjectCardProps {
+  project: Project
+  onDelete: (id: string) => void
+}
+
+// 3. Component
+export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+  // Hooks first
+  const [isLoading, setIsLoading] = useState(false)
+  
+  // Handlers
+  const handleDelete = async () => {
+    setIsLoading(true)
+    await onDelete(project.id)
+    setIsLoading(false)
+  }
+  
+  // Render
+  return (
+    <div className="...">
+      {/* JSX */}
+    </div>
+  )
+}
+```
+
+### Client vs Server Components
+```tsx
+// Server Component (default in App Router)
+// app/(dashboard)/dashboard/page.tsx
+export default async function DashboardPage() {
+  // Can fetch data directly
+  const projects = await getProjects()
+  return <ProjectsList projects={projects} />
+}
+
+// Client Component (needs interactivity)
+// components/dashboard/projects-list.tsx
+'use client'
+
+export function ProjectsList({ projects }: Props) {
+  const [filter, setFilter] = useState('')
+  // ...
+}
+```
+
+## API Routes
+
+### Standard Pattern
+```typescript
+// app/api/projects/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', user.id)
+    
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error('Error:', error)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+}
+```
+
+### Error Handling
+```typescript
+// Always return JSON with error field
+return NextResponse.json({ error: 'Message' }, { status: 4xx/5xx })
+
+// Log errors for debugging
+console.error('[API/projects] Error:', error)
+```
+
+## Supabase Patterns
+
+### Client Creation
+```typescript
+// In Server Components / API Routes
+import { createClient } from '@/lib/supabase/server'
+const supabase = await createClient()
+
+// For admin operations (bypass RLS)
+import { createAdminClient } from '@/lib/supabase/server'
+const adminClient = createAdminClient()
+```
+
+### Queries
+```typescript
+// Single item
+const { data, error } = await supabase
+  .from('projects')
+  .select('*')
+  .eq('id', projectId)
+  .single()
+
+// List with filters
+const { data, error } = await supabase
+  .from('projects')
+  .select('*')
+  .eq('user_id', userId)
+  .order('created_at', { ascending: false })
+
+// With related data
+const { data, error } = await supabase
+  .from('scans')
+  .select(`
+    *,
+    project:projects(name, domain)
+  `)
+  .eq('id', scanId)
+  .single()
+```
+
+## Tailwind CSS
+
+### Class Order (approximate)
+```tsx
+<div className="
+  // Layout
+  flex flex-col items-center justify-between
+  // Sizing
+  w-full h-64 max-w-md
+  // Spacing
+  p-4 m-2 gap-4
+  // Background & Border
+  bg-zinc-900 border border-zinc-800 rounded-lg
+  // Typography
+  text-sm text-zinc-300 font-medium
+  // States
+  hover:bg-zinc-800 focus:ring-2
+  // Transitions
+  transition-colors duration-200
+">
+```
+
+### Dark Theme
+Project uses dark theme exclusively:
+```tsx
+// Use zinc scale for backgrounds
+bg-zinc-950  // Darkest (page background)
+bg-zinc-900  // Cards, containers
+bg-zinc-800  // Hover states, borders
+bg-zinc-700  // Active states
+
+// Text colors
+text-white   // Primary text
+text-zinc-300 // Secondary text
+text-zinc-500 // Muted text
+```
+
+## Error Messages
+
+### User-Facing (English)
+```typescript
+// Clear, actionable messages
+'Project not found'
+'Insufficient credits to run scan'
+'Please configure API keys in Settings'
+```
+
+### Console Logs (for debugging)
+```typescript
+console.log('[ComponentName] Action:', data)
+console.error('[API/route] Error:', error)
+```

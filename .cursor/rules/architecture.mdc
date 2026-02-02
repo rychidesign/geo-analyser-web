@@ -1,0 +1,156 @@
+# Architecture & Data Flow
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      FRONTEND (Next.js)                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
+│  │   Dashboard     │  │   Projects      │  │  Settings   │  │
+│  │   Components    │  │   Pages         │  │  Pages      │  │
+│  └────────┬────────┘  └────────┬────────┘  └──────┬──────┘  │
+└───────────┼─────────────────────┼─────────────────┼─────────┘
+            │                     │                 │
+            ▼                     ▼                 ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     API ROUTES (Next.js)                     │
+│  /api/projects/*  │  /api/scan/*  │  /api/settings/*        │
+└──────────┬────────────────┬────────────────┬────────────────┘
+           │                │                │
+           ▼                ▼                ▼
+┌─────────────────────────────────────────────────────────────┐
+│                         LIB LAYER                            │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐            │
+│  │  credits/  │  │   scan/    │  │    llm/    │            │
+│  │  (billing) │  │  (engine)  │  │ (providers)│            │
+│  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘            │
+└────────┼───────────────┼───────────────┼────────────────────┘
+         │               │               │
+         ▼               ▼               ▼
+┌─────────────────┐  ┌─────────────────────────────────────────┐
+│    SUPABASE     │  │           LLM PROVIDERS                 │
+│  ┌───────────┐  │  │  ┌────────┐ ┌────────┐ ┌────────┐     │
+│  │PostgreSQL │  │  │  │OpenAI  │ │Anthropic│ │Google  │     │
+│  │   + RLS   │  │  │  └────────┘ └────────┘ └────────┘     │
+│  └───────────┘  │  │  ┌────────┐ ┌────────┐                │
+│  ┌───────────┐  │  │  │Groq    │ │Perplexity│               │
+│  │   Auth    │  │  │  └────────┘ └────────┘                │
+│  └───────────┘  │  └─────────────────────────────────────────┘
+└─────────────────┘
+```
+
+## Scan Execution Flow
+
+```
+1. User clicks "Run Scan"
+       │
+       ▼
+2. POST /api/scan/start
+   - Validate user credits/limits
+   - Create credit reservation
+   - Add to scan_queue
+       │
+       ▼
+3. Scan Engine (lib/scan/engine.ts)
+   - For each query × model:
+     a. Check queue status (pause/cancel)
+     b. Call LLM via lib/llm/[provider].ts
+     c. Evaluate response (AI evaluation)
+     d. Save ScanResult to database
+     e. Update progress
+       │
+       ▼
+4. Scan Completion
+   - Calculate aggregated metrics
+   - Update Scan record
+   - Consume credit reservation
+   - Track usage in monthly_usage
+```
+
+## Database Schema Overview
+
+### Core Tables
+
+```
+user_profiles
+├── user_id (FK → auth.users)
+├── tier (free|paid|test|admin)
+├── credit_balance_cents
+├── free_scans_used_this_month
+└── free_scans_reset_at
+
+projects
+├── user_id (FK)
+├── name, domain
+├── brand_variations (JSONB array)
+├── target_keywords (JSONB array)
+├── selected_models (JSONB array)
+├── language
+├── follow_up_enabled, follow_up_depth
+├── query_generation_model
+└── evaluation_model
+
+project_queries
+├── project_id (FK)
+├── query_text
+├── query_type (informational|transactional|comparison)
+└── is_ai_generated
+
+scans
+├── project_id (FK)
+├── user_id (FK)
+├── status (running|completed|failed|stopped)
+├── Aggregated metrics (avg_visibility, avg_sentiment, etc.)
+├── Resilience scores (initial_score, conversational_bonus)
+└── Cost tracking (total_cost_usd, total_tokens)
+
+scan_results
+├── scan_id (FK)
+├── provider, model
+├── query_text, ai_response_raw
+├── metrics_json (ScanMetrics)
+├── follow_up_level (0=initial, 1-3=follow-ups)
+└── parent_result_id (for follow-up chains)
+```
+
+### Credit System Tables
+
+```
+credit_transactions  - All credit movements
+credit_reservations  - Active scan reservations
+pricing_config      - Per-model pricing (database-managed)
+tier_limits         - Limits per user tier
+```
+
+## Authentication Flow
+
+```
+1. User visits protected route
+       │
+       ▼
+2. middleware.ts checks session
+   - No session → redirect to /login
+   - Has session → continue
+       │
+       ▼
+3. API routes get user from session
+   const supabase = await createClient()
+   const { data: { user } } = await supabase.auth.getUser()
+```
+
+## Component Architecture
+
+### Dashboard Layout
+```
+app/(dashboard)/layout.tsx
+├── DashboardLayoutClient
+│   ├── Sidebar (navigation + scan queue)
+│   ├── MobileHeader
+│   └── Main content area
+└── AnnouncementBar (global notifications)
+```
+
+### Scan Queue (Real-time)
+- Uses Supabase real-time subscriptions
+- Shows progress for all queued scans
+- Supports pause/resume/cancel

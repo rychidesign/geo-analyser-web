@@ -1,0 +1,78 @@
+# GEO Analyser - Project Overview
+
+## What is this project?
+
+**GEO Analyser** (Generative Engine Optimization) is a SaaS web application that tracks how brands appear in AI-generated responses from ChatGPT, Claude, Gemini, and other LLMs. It helps users optimize their online presence for AI-powered search.
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript (strict mode)
+- **Database**: Supabase (PostgreSQL) with Row Level Security
+- **ORM**: Drizzle ORM
+- **Auth**: Supabase Auth
+- **Styling**: Tailwind CSS + Radix UI primitives
+- **Charts**: Recharts
+- **State**: Zustand
+- **Deployment**: Vercel + GitHub integration
+
+## Project Structure
+
+```
+app/
+├── (auth)/           # Login, register pages
+├── (dashboard)/      # Main app pages (protected)
+│   └── dashboard/    # Projects, settings, scans
+├── api/              # API routes
+│   ├── admin/        # Admin-only endpoints
+│   ├── projects/     # Project CRUD + queries
+│   ├── scan/         # Scan execution
+│   └── settings/     # User settings
+components/
+├── ui/               # Reusable UI components (shadcn/ui)
+├── dashboard/        # Dashboard-specific components
+└── charts/           # Data visualization
+lib/
+├── ai/               # Vercel AI SDK integration (Gateway)
+├── llm/              # Direct LLM provider calls
+├── credits/          # Credit system logic
+├── db/               # Database schema & types
+├── scan/             # Scan engine
+└── supabase/         # Supabase client helpers
+```
+
+## Key Features
+
+- **Multi-LLM Testing**: Test queries across OpenAI, Anthropic, Google, Groq, Perplexity
+- **AI Query Generation**: Auto-generate test queries in multiple languages
+- **5 Metrics**: Visibility, Sentiment, Citation, Ranking, Overall Recommendation
+- **Follow-up Queries**: Conversational resilience testing
+- **Scheduled Scans**: Automated weekly monitoring
+- **Credit System**: Pay-as-you-go with tier limits
+- **Cost Tracking**: Per-scan and per-model cost breakdown
+
+## Environments
+
+| Environment | Database | URL |
+|-------------|----------|-----|
+| Production | Supabase Production | Vercel deployment |
+| Development | Supabase Test | localhost:3000 |
+
+## Quick Commands
+
+```bash
+npm run dev          # Start dev server
+npm run build        # Production build
+npm run lint         # Run ESLint
+npm run db:generate  # Generate Drizzle migrations
+npm run db:push      # Push schema to database
+```
+
+## Important Files to Know
+
+- `lib/db/schema.ts` - Database types and table names
+- `lib/llm/types.ts` - LLM model definitions ⚠️ DO NOT MODIFY WITHOUT PERMISSION
+- `lib/ai/providers.ts` - Vercel AI Gateway config ⚠️ DO NOT MODIFY WITHOUT PERMISSION
+- `lib/credits/index.ts` - Credit system logic
+- `lib/scan/engine.ts` - Core scan execution logic
+- `middleware.ts` - Auth middleware

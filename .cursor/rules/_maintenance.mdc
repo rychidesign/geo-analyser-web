@@ -1,0 +1,139 @@
+# Documentation Maintenance Guide
+
+## When to Update Documentation
+
+Update the relevant `.mdc` files when:
+
+1. **New feature added** → Update `project-overview.mdc`, relevant feature docs
+2. **Database schema changed** → Update `database.mdc`
+3. **New API endpoints** → Update `api-llm.mdc`
+4. **New components** → Update `components-ui.mdc`
+5. **Critical rules changed** → Update `critical-rules.mdc`
+6. **Deployment process changed** → Update `deployment.mdc`
+
+## Documentation Structure
+
+```
+.cursor/rules/
+├── project-overview.mdc    # High-level project summary
+├── critical-rules.mdc      # ⚠️ MUST-READ rules for every agent
+├── architecture.mdc        # System design, data flow
+├── conventions.mdc         # Code style, patterns
+├── database.mdc            # Schema, queries, migrations
+├── api-llm.mdc             # API routes, LLM integration
+├── components-ui.mdc       # UI components, styling
+├── deployment.mdc          # Vercel, environments
+├── credits-system.mdc      # Billing, credits, tiers
+└── _maintenance.mdc        # This file
+```
+
+## File Naming Convention
+
+- Lowercase with hyphens: `feature-name.mdc`
+- Underscore prefix for meta files: `_maintenance.mdc`
+
+## Update Checklist
+
+When making significant changes:
+
+- [ ] Update relevant `.mdc` file(s)
+- [ ] Update `project-overview.mdc` if structure changed
+- [ ] Update `critical-rules.mdc` if new protected files/rules
+- [ ] Check for outdated information in other docs
+
+## Documentation Format
+
+### Headers
+```markdown
+# Main Title
+## Section
+### Subsection
+```
+
+### Code Examples
+```markdown
+\`\`\`typescript
+// Always provide working examples
+const example = await doSomething()
+\`\`\`
+```
+
+### Tables
+```markdown
+| Column 1 | Column 2 |
+|----------|----------|
+| Value    | Value    |
+```
+
+### Warnings
+```markdown
+### ⚠️ Warning Title
+Important warning text.
+
+**Note**: Additional note.
+```
+
+## Keeping Docs Current
+
+### After Major Features
+1. Review affected `.mdc` files
+2. Add new patterns/components
+3. Update diagrams if needed
+
+### After Refactoring
+1. Check for renamed files/functions
+2. Update import paths in examples
+3. Remove deprecated patterns
+
+### Periodic Review (Monthly)
+1. Verify code examples still work
+2. Check for outdated dependencies
+3. Update environment variable docs
+4. Review critical rules
+
+## Quick Reference Updates
+
+### Adding a New Model
+If user explicitly requests to add a new LLM model:
+
+1. Update `lib/llm/types.ts`:
+   - Add to `LLMModel` type
+   - Add to `AVAILABLE_MODELS` array
+   - Add to `MODEL_PRICING`
+
+2. Update `lib/ai/providers.ts`:
+   - Add to `AVAILABLE_MODELS`
+   - Add to Gateway model mapping
+
+3. Update provider file (e.g., `lib/llm/openai.ts`):
+   - Add to `MODEL_MAP`
+
+4. Update `api-llm.mdc` with new model info
+
+### Adding a New Table
+1. Create migration SQL
+2. Run in Supabase (Production + Test)
+3. Update `lib/db/schema.ts` types
+4. Update `database.mdc` with table docs
+
+### Adding a New API Route
+1. Create route file in `app/api/`
+2. Follow patterns in `conventions.mdc`
+3. Add to API structure in `api-llm.mdc`
+
+## Agent Instructions
+
+When starting a new chat/task:
+
+1. **Read `critical-rules.mdc` first** - Contains must-follow rules
+2. **Read `project-overview.mdc`** - Understand project context
+3. **Read relevant feature docs** - Based on task type:
+   - Database work → `database.mdc`
+   - UI work → `components-ui.mdc`
+   - API work → `api-llm.mdc`
+   - Billing → `credits-system.mdc`
+
+4. **Before modifying protected files** - Ask for explicit permission:
+   - `lib/llm/types.ts`
+   - `lib/ai/providers.ts`
+   - Provider files (`lib/llm/*.ts`)

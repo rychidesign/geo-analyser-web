@@ -1,0 +1,182 @@
+# Deployment Guide
+
+## Overview
+
+- **Hosting**: Vercel
+- **Database**: Supabase (Production + Test)
+- **CI/CD**: GitHub → Vercel (automatic)
+- **Branching**: `main` (production) + `develop` (staging)
+
+## Branch Strategy
+
+| Branch | Environment | Database | Auto-deploy |
+|--------|-------------|----------|-------------|
+| `main` | Production | Production Supabase | ✅ Yes |
+| `develop` | Preview/Staging | Test Supabase | ✅ Yes |
+| `feature/*` | Preview | Test Supabase | ✅ Yes |
+
+## Deployment Flow
+
+```
+Feature Development:
+───────────────────
+1. Work on feature (local)
+2. Push to develop → Vercel Preview
+3. Test on preview URL
+4. When ready: merge develop → main
+5. Vercel deploys to Production
+
+Quick Reference:
+───────────────
+develop branch  →  Preview deployment  →  Test Supabase
+main branch     →  Production deployment → Production Supabase
+```
+
+See `git-workflow.mdc` for detailed agent commands.
+
+## Environment Variables
+
+### Required on Vercel
+
+```bash
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
+
+# Vercel AI Gateway (for internal AI operations)
+VERCEL_AI_GATEWAY_SECRET_KEY=sk-...
+
+# Optional: Direct API keys (fallback if Gateway not configured)
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_GENERATIVE_AI_API_KEY=AIza...
+GROQ_API_KEY=gsk_...
+PERPLEXITY_API_KEY=pplx-...
+
+# App
+NEXT_PUBLIC_APP_URL=https://your-domain.vercel.app
+```
+
+### Local Development (`.env.local`)
+
+```bash
+# Use TEST Supabase project for development
+NEXT_PUBLIC_SUPABASE_URL=https://test-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
+
+# Can use direct API keys locally
+OPENAI_API_KEY=sk-...
+# etc.
+```
+
+## Vercel Configuration
+
+### `vercel.json`
+```json
+{
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 25
+    }
+  }
+}
+```
+
+### Important Limits (Hobby Plan)
+
+| Resource | Limit |
+|----------|-------|
+| Function timeout | 25 seconds |
+| Edge function timeout | 25 seconds |
+| Deployment size | 100 MB |
+| Bandwidth | 100 GB/month |
+
+**Note**: All LLM calls use 22s timeout to stay under limit.
+
+## Database Migrations
+
+### Production Deployment Checklist
+
+1. **Before deployment**: Run migrations in Supabase SQL Editor
+2. **Update types**: Ensure `lib/db/schema.ts` matches schema
+3. **Deploy code**: Push to GitHub
+4. **Verify**: Check that app works with new schema
+
+### Migration Files
+
+Located in `supabase/migrations/`:
+```
+0000_right_living_lightning.sql
+0001_add_language_to_projects.sql
+... etc
+```
+
+Run in order in Supabase SQL Editor for both Production and Test projects.
+
+## Cron Jobs
+
+### Scheduled Scans
+- **Endpoint**: `/api/cron/scheduled-scans`
+- **Schedule**: Daily (configured in Vercel)
+- **Purpose**: Run weekly scans for projects with `scheduled_scan_enabled = true`
+
+### Setup in Vercel
+1. Go to Project Settings → Cron Jobs
+2. Add: `0 8 * * *` → `/api/cron/scheduled-scans`
+
+## Troubleshooting
+
+### Build Fails
+
+```bash
+# Check locally first
+npm run build
+
+# Common issues:
+# - TypeScript errors
+# - Missing environment variables
+# - Import errors
+```
+
+### API Timeouts
+
+- Check function duration in Vercel logs
+- LLM calls might exceed 25s limit
+- Consider: reduce model response length, use faster models
+
+### Database Connection Issues
+
+- Verify Supabase URL and keys
+- Check RLS policies aren't blocking
+- Ensure user is authenticated for protected routes
+
+## Monitoring
+
+### Vercel Dashboard
+- Deployment status
+- Function logs
+- Error tracking
+- Analytics
+
+### Supabase Dashboard
+- Database usage
+- Auth users
+- API usage
+- Real-time connections
+
+## Rollback
+
+If deployment breaks production:
+
+1. Go to Vercel Dashboard → Deployments
+2. Find last working deployment
+3. Click "..." → "Promote to Production"
+
+## Documentation Files
+
+- `DEPLOYMENT.md` - Detailed deployment guide
+- `DEPLOYMENT_CHECKLIST.md` - Pre-deployment checklist
+- `READY_TO_DEPLOY.md` - Current deployment status
+- `SETUP_GITHUB.md` - GitHub repository setup

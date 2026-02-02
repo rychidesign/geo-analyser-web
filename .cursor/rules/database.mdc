@@ -1,0 +1,257 @@
+# Database Guide
+
+## Overview
+
+- **Provider**: Supabase (PostgreSQL)
+- **ORM**: Drizzle ORM (migrations only, queries use Supabase client)
+- **Security**: Row Level Security (RLS) enabled on all tables
+
+## Environments
+
+| Environment | Usage |
+|-------------|-------|
+| **Production** | Live users, real data |
+| **Test** | Development, testing |
+
+Switch environments by changing `NEXT_PUBLIC_SUPABASE_URL` and keys in `.env.local`
+
+## Schema Location
+
+- **Types**: `lib/db/schema.ts`
+- **SQL Schema**: `supabase/schema.sql`
+- **Migrations**: `supabase/migrations/*.sql`
+
+## Core Tables
+
+### user_profiles
+User account info, tiers, and credit balances.
+```sql
+CREATE TABLE user_profiles (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  tier TEXT DEFAULT 'free',  -- free|paid|test|admin
+  credit_balance_cents INTEGER DEFAULT 0,
+  paid_credits_cents INTEGER DEFAULT 0,
+  bonus_credits_cents INTEGER DEFAULT 0,
+  free_scans_used_this_month INTEGER DEFAULT 0,
+  free_scans_reset_at TIMESTAMPTZ,
+  test_simulate_no_credits BOOLEAN DEFAULT false,
+  avatar_url TEXT
+);
+```
+
+### projects
+Main entity for GEO tracking.
+```sql
+CREATE TABLE projects (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  name TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  brand_variations JSONB DEFAULT '[]',
+  target_keywords JSONB DEFAULT '[]',
+  selected_models JSONB DEFAULT '[]',
+  language TEXT DEFAULT 'en',
+  scheduled_scan_enabled BOOLEAN DEFAULT false,
+  scheduled_scan_day INTEGER,  -- 0-6 (Sun-Sat)
+  follow_up_enabled BOOLEAN DEFAULT false,
+  follow_up_depth INTEGER DEFAULT 1,
+  query_generation_model TEXT,
+  evaluation_model TEXT
+);
+```
+
+### project_queries
+Test queries for each project.
+```sql
+CREATE TABLE project_queries (
+  id UUID PRIMARY KEY,
+  project_id UUID REFERENCES projects(id),
+  query_text TEXT NOT NULL,
+  query_type TEXT DEFAULT 'informational',  -- informational|transactional|comparison
+  is_active BOOLEAN DEFAULT true,
+  is_ai_generated BOOLEAN DEFAULT false
+);
+```
+
+### scans
+Scan execution records with aggregated metrics.
+```sql
+CREATE TABLE scans (
+  id UUID PRIMARY KEY,
+  project_id UUID REFERENCES projects(id),
+  user_id UUID REFERENCES auth.users(id),
+  status TEXT DEFAULT 'running',  -- running|completed|failed|stopped
+  
+  -- Aggregated metrics (0-100)
+  overall_score NUMERIC,
+  avg_visibility NUMERIC,
+  avg_sentiment NUMERIC,
+  avg_ranking NUMERIC,
+  
+  -- Resilience scoring
+  initial_score NUMERIC,
+  conversational_bonus NUMERIC,
+  brand_persistence NUMERIC,
+  follow_up_active BOOLEAN,
+  
+  -- Cost tracking
+  total_cost_usd NUMERIC DEFAULT 0,
+  total_input_tokens INTEGER DEFAULT 0,
+  total_output_tokens INTEGER DEFAULT 0,
+  total_queries INTEGER DEFAULT 0,
+  total_results INTEGER DEFAULT 0
+);
+```
+
+### scan_results
+Individual LLM responses with metrics.
+```sql
+CREATE TABLE scan_results (
+  id UUID PRIMARY KEY,
+  scan_id UUID REFERENCES scans(id),
+  provider TEXT NOT NULL,  -- openai|anthropic|google|groq|perplexity
+  model TEXT NOT NULL,
+  query_text TEXT NOT NULL,
+  ai_response_raw TEXT,
+  metrics_json JSONB,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  cost_usd NUMERIC,
+  follow_up_level INTEGER DEFAULT 0,  -- 0=initial, 1-3=follow-ups
+  parent_result_id UUID REFERENCES scan_results(id)
+);
+```
+
+## Credit System Tables
+
+### pricing_config ⚠️ DO NOT MODIFY IN CODE
+```sql
+CREATE TABLE pricing_config (
+  id UUID PRIMARY KEY,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  base_input_cost_cents INTEGER,  -- per 1M tokens
+  base_output_cost_cents INTEGER,
+  markup_percentage INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT true
+);
+```
+
+### tier_limits ⚠️ DO NOT MODIFY IN CODE
+```sql
+CREATE TABLE tier_limits (
+  tier TEXT PRIMARY KEY,
+  max_projects INTEGER,
+  max_queries_per_project INTEGER,
+  max_scans_per_month INTEGER,
+  can_use_all_models BOOLEAN,
+  can_schedule_scans BOOLEAN
+);
+```
+
+## Query Patterns
+
+### Basic CRUD
+```typescript
+import { createClient } from '@/lib/supabase/server'
+import { TABLES } from '@/lib/db/schema'
+
+// Create
+const { data, error } = await supabase
+  .from(TABLES.PROJECTS)
+  .insert({ user_id: userId, name: 'New Project', domain: 'example.com' })
+  .select()
+  .single()
+
+// Read
+const { data, error } = await supabase
+  .from(TABLES.PROJECTS)
+  .select('*')
+  .eq('user_id', userId)
+
+// Update
+const { error } = await supabase
+  .from(TABLES.PROJECTS)
+  .update({ name: 'Updated Name' })
+  .eq('id', projectId)
+
+// Delete
+const { error } = await supabase
+  .from(TABLES.PROJECTS)
+  .delete()
+  .eq('id', projectId)
+```
+
+### With Relations
+```typescript
+// Get project with queries
+const { data } = await supabase
+  .from(TABLES.PROJECTS)
+  .select(`
+    *,
+    queries:project_queries(*)
+  `)
+  .eq('id', projectId)
+  .single()
+
+// Get scan with results
+const { data } = await supabase
+  .from(TABLES.SCANS)
+  .select(`
+    *,
+    results:scan_results(*),
+    project:projects(name, domain)
+  `)
+  .eq('id', scanId)
+  .single()
+```
+
+### Real-time Subscriptions
+```typescript
+// Subscribe to scan queue changes
+const channel = supabase
+  .channel('scan-queue')
+  .on(
+    'postgres_changes',
+    {
+      event: '*',
+      schema: 'public',
+      table: 'scan_queue',
+      filter: `user_id=eq.${userId}`
+    },
+    (payload) => {
+      console.log('Queue changed:', payload)
+    }
+  )
+  .subscribe()
+
+// Cleanup
+return () => supabase.removeChannel(channel)
+```
+
+## Migrations
+
+### Creating New Migration
+1. Write SQL in `supabase/migrations/XXXX_description.sql`
+2. Run in Supabase SQL Editor (Production/Test)
+3. Update `lib/db/schema.ts` types
+
+### Migration Naming
+```
+0001_add_language_to_projects.sql
+0002_add_follow_up_fields.sql
+```
+
+## RLS Policies
+
+All tables have RLS enabled. Default policies:
+- Users can only SELECT/INSERT/UPDATE/DELETE their own rows
+- Admin operations require `createAdminClient()`
+
+Example policy:
+```sql
+CREATE POLICY "Users can view own projects"
+ON projects FOR SELECT
+USING (auth.uid() = user_id);
+```

@@ -1,0 +1,276 @@
+# Components & UI Guide
+
+## Component Library
+
+Built on **shadcn/ui** (Radix UI primitives + Tailwind CSS).
+
+### Available Components (`components/ui/`)
+
+| Component | File | Usage |
+|-----------|------|-------|
+| Button | `button.tsx` | Primary action buttons |
+| Card | `card.tsx` | Content containers |
+| Dialog | `dialog.tsx` | Modal dialogs |
+| Input | `input.tsx` | Text inputs |
+| Label | `label.tsx` | Form labels |
+| Select | `select.tsx` | Dropdowns |
+| Checkbox | `checkbox.tsx` | Checkboxes |
+| Tabs | `tabs.tsx` | Tab navigation |
+| Toast | `toast.tsx`, `toaster.tsx` | Notifications |
+| Tooltip | `tooltip.tsx` | Hover tooltips |
+| Dropdown Menu | `dropdown-menu.tsx` | Context menus |
+| Separator | `separator.tsx` | Visual dividers |
+
+### Usage Pattern
+
+```tsx
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+
+<Card>
+  <CardHeader>
+    <CardTitle>Project Settings</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="name">Project Name</Label>
+        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <Button onClick={handleSave}>Save Changes</Button>
+    </div>
+  </CardContent>
+</Card>
+```
+
+## Dashboard Components (`components/dashboard/`)
+
+### Sidebar (`sidebar.tsx`)
+Main navigation + scan queue display.
+
+### ProjectsList (`projects-list.tsx`)
+Grid of project cards with actions.
+
+### PageHeader (`page-header.tsx`)
+Consistent page headers with title and actions.
+
+```tsx
+import { PageHeader } from '@/components/dashboard/page-header'
+
+<PageHeader
+  title="Projects"
+  description="Manage your GEO tracking projects"
+  action={<Button>New Project</Button>}
+/>
+```
+
+### MultiScanDialog (`multi-scan-dialog.tsx`)
+Dialog for selecting multiple projects to scan.
+
+### DuplicateProjectDialog (`duplicate-project-dialog.tsx`)
+Dialog for cloning a project.
+
+## Chart Components (`components/charts/`)
+
+### MetricsChart (`metrics-chart.tsx`)
+Line/area charts for scan metrics over time using Recharts.
+
+```tsx
+import { MetricsChart } from '@/components/charts/metrics-chart'
+
+<MetricsChart
+  data={scanHistory}
+  metric="overall_score"
+  title="Overall Score Trend"
+/>
+```
+
+## Styling Patterns
+
+### Dark Theme Colors
+
+```tsx
+// Backgrounds (darkest to lightest)
+bg-zinc-950  // Page background
+bg-zinc-900  // Cards, panels
+bg-zinc-800  // Hover states, borders
+bg-zinc-700  // Active states
+
+// Text
+text-white      // Primary text
+text-zinc-100   // Important text
+text-zinc-300   // Secondary text
+text-zinc-400   // Muted text
+text-zinc-500   // Disabled text
+
+// Accents
+text-emerald-400  // Success, positive
+text-red-400      // Error, negative
+text-yellow-400   // Warning
+text-blue-400     // Info, links
+```
+
+### Common Layout Patterns
+
+```tsx
+// Page container
+<div className="container mx-auto px-4 py-8 max-w-7xl">
+
+// Card grid
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+// Form stack
+<div className="space-y-4">
+
+// Flex row with spacing
+<div className="flex items-center justify-between gap-4">
+
+// Full-height dashboard
+<div className="min-h-screen bg-zinc-950">
+```
+
+### Button Variants
+
+```tsx
+// Primary (default)
+<Button>Action</Button>
+
+// Secondary/outline
+<Button variant="outline">Cancel</Button>
+
+// Destructive
+<Button variant="destructive">Delete</Button>
+
+// Ghost (minimal)
+<Button variant="ghost">Menu Item</Button>
+
+// With loading state
+<Button disabled={isLoading}>
+  {isLoading ? 'Saving...' : 'Save'}
+</Button>
+
+// With icon
+<Button>
+  <Plus className="w-4 h-4 mr-2" />
+  Add Project
+</Button>
+```
+
+### Icons
+
+Using **Lucide React**:
+
+```tsx
+import { 
+  Plus, 
+  Trash2, 
+  Settings, 
+  Play, 
+  Pause, 
+  X,
+  ChevronRight,
+  ExternalLink 
+} from 'lucide-react'
+
+<Plus className="w-4 h-4" />
+```
+
+## Form Patterns
+
+### Controlled Input
+
+```tsx
+const [value, setValue] = useState('')
+
+<Input
+  value={value}
+  onChange={(e) => setValue(e.target.value)}
+  placeholder="Enter value..."
+/>
+```
+
+### Select Dropdown
+
+```tsx
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+<Select value={language} onValueChange={setLanguage}>
+  <SelectTrigger>
+    <SelectValue placeholder="Select language" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="en">English</SelectItem>
+    <SelectItem value="cs">Czech</SelectItem>
+    <SelectItem value="de">German</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+### Toast Notifications
+
+```tsx
+import { useToast } from '@/components/ui/use-toast'
+
+function MyComponent() {
+  const { toast } = useToast()
+  
+  const handleSuccess = () => {
+    toast({
+      title: 'Success',
+      description: 'Project saved successfully',
+    })
+  }
+  
+  const handleError = () => {
+    toast({
+      title: 'Error',
+      description: 'Failed to save project',
+      variant: 'destructive',
+    })
+  }
+}
+```
+
+## Loading States
+
+```tsx
+// Button loading
+<Button disabled={isLoading}>
+  {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+  {isLoading ? 'Loading...' : 'Submit'}
+</Button>
+
+// Full page loading
+<div className="flex items-center justify-center min-h-[400px]">
+  <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+</div>
+
+// Skeleton placeholder
+<div className="animate-pulse bg-zinc-800 rounded h-4 w-32" />
+```
+
+## Responsive Design
+
+```tsx
+// Mobile-first approach
+<div className="
+  // Mobile (default)
+  flex flex-col gap-4
+  // Tablet (md: 768px+)
+  md:flex-row md:items-center
+  // Desktop (lg: 1024px+)
+  lg:gap-8
+">
+```
+
+### Sidebar Behavior
+- **Desktop**: Fixed sidebar, always visible
+- **Mobile**: Hidden by default, toggle with hamburger menu

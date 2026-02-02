@@ -1,0 +1,228 @@
+# Testing Guide
+
+## Overview
+
+GEO Analyser uses **Vitest** for unit and integration testing with **React Testing Library** for component tests.
+
+## Test Commands
+
+```bash
+npm run test           # Watch mode (interactive)
+npm run test:run       # Single run (CI/agents)
+npm run test:coverage  # Run with coverage report
+```
+
+## Test Structure
+
+```
+tests/
+├── setup.ts           # Global test setup
+├── lib/
+│   ├── credits.test.ts    # Credit system tests
+│   └── llm-types.test.ts  # LLM model/pricing tests
+└── components/        # Future: React component tests
+```
+
+## Writing Tests
+
+### Basic Test Structure
+
+```typescript
+import { describe, it, expect } from 'vitest'
+import { myFunction } from '@/lib/module'
+
+describe('Module Name', () => {
+  describe('functionName', () => {
+    it('describes what it does', () => {
+      const result = myFunction(input)
+      expect(result).toBe(expectedOutput)
+    })
+  })
+})
+```
+
+### Mocking Supabase
+
+For tests that need Supabase, mock the client:
+
+```typescript
+import { vi } from 'vitest'
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn(() => ({
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          single: vi.fn(() => ({ data: mockData, error: null }))
+        }))
+      }))
+    }))
+  }))
+}))
+```
+
+### Testing React Components
+
+```typescript
+import { render, screen, fireEvent } from '@testing-library/react'
+import { Button } from '@/components/ui/button'
+
+describe('Button', () => {
+  it('renders with text', () => {
+    render(<Button>Click me</Button>)
+    expect(screen.getByText('Click me')).toBeInTheDocument()
+  })
+
+  it('calls onClick when clicked', () => {
+    const onClick = vi.fn()
+    render(<Button onClick={onClick}>Click</Button>)
+    fireEvent.click(screen.getByText('Click'))
+    expect(onClick).toHaveBeenCalled()
+  })
+})
+```
+
+## What to Test
+
+### ✅ Should Test
+
+1. **Pure utility functions** - Cost calculations, formatters, validators
+2. **Business logic** - Credit checks, permission logic, tier limits
+3. **Data transformations** - API response parsing, model mappings
+4. **Component behavior** - User interactions, state changes
+
+### ⚠️ Test With Caution
+
+1. **API routes** - Need mocked Supabase, complex setup
+2. **LLM integrations** - Expensive, use mocks
+3. **Database operations** - Use test database or mocks
+
+### ❌ Don't Unit Test
+
+1. **Third-party libraries** - Supabase, Radix UI internals
+2. **Next.js internals** - Routing, server components
+3. **Styling** - Use visual testing instead
+
+## Current Test Coverage
+
+### Credit System (`tests/lib/credits.test.ts`)
+- ✅ `centsToUsd`, `usdToCents` - Conversion functions
+- ✅ `formatUsd`, `formatUsdPrecise` - Display formatting
+- ✅ `calculateTopUpBonus` - Bonus calculation
+- ✅ `estimateScanCost` - Cost estimation
+- ✅ `canUserPerformAction` - Permission checks
+- ✅ `getAvailableModels` - Tier-based model filtering
+
+### LLM Types (`tests/lib/llm-types.test.ts`)
+- ✅ `AVAILABLE_MODELS` - Model definitions integrity
+- ✅ `MODEL_PRICING` - Pricing data consistency
+- ✅ `DEFAULT_MODELS` - Default model validity
+- ✅ `calculateCost` - Token cost calculation
+- ✅ `getModelInfo`, `getModelsByProvider`, `getProviderForModel` - Helpers
+
+---
+
+# Agent Testing Checklist
+
+## After Every Code Change
+
+### 1. Build Check ✅
+```bash
+npm run build
+```
+- Must pass without errors
+- Check for TypeScript errors
+
+### 2. Run Tests ✅
+```bash
+npm run test:run
+```
+- All existing tests must pass
+- If you modified tested code, ensure tests still pass
+
+### 3. Manual Verification
+- Test the feature in browser (`npm run dev`)
+- Check browser console for errors
+- Verify database operations work
+
+## When Adding New Features
+
+### Add Tests For:
+1. **New utility functions** → Add to `tests/lib/`
+2. **New components with logic** → Add to `tests/components/`
+3. **New API calculations** → Add unit tests
+
+### Test Template for New Functions
+
+```typescript
+// tests/lib/your-module.test.ts
+import { describe, it, expect } from 'vitest'
+import { newFunction } from '@/lib/your-module'
+
+describe('newFunction', () => {
+  it('handles normal input', () => {
+    expect(newFunction('normal')).toBe('expected')
+  })
+
+  it('handles edge cases', () => {
+    expect(newFunction('')).toBe('default')
+    expect(newFunction(null)).toBe('default')
+  })
+
+  it('throws on invalid input', () => {
+    expect(() => newFunction('invalid')).toThrow()
+  })
+})
+```
+
+## Pre-Commit Checklist
+
+- [ ] `npm run build` passes
+- [ ] `npm run test:run` passes (all 44+ tests)
+- [ ] `npm run lint` passes (or only pre-existing warnings)
+- [ ] Manual test in browser works
+- [ ] No console errors in browser
+
+## Quick Test Run
+
+For a quick verification:
+
+```bash
+npm run test:run 2>&1 | tail -10
+```
+
+Expected output:
+```
+ ✓ tests/lib/llm-types.test.ts (21 tests)
+ ✓ tests/lib/credits.test.ts (23 tests)
+
+ Test Files  2 passed (2)
+      Tests  44 passed (44)
+```
+
+---
+
+## Future Test Expansion
+
+### Planned Tests
+- [ ] Component tests for dashboard
+- [ ] API route integration tests
+- [ ] Scan engine tests (mocked LLM)
+- [ ] E2E tests with Playwright
+
+### Adding Component Tests
+
+When ready to add component tests:
+
+```typescript
+// tests/components/button.test.tsx
+import { render, screen } from '@testing-library/react'
+import { Button } from '@/components/ui/button'
+
+describe('Button', () => {
+  it('renders correctly', () => {
+    render(<Button>Test</Button>)
+    expect(screen.getByRole('button')).toHaveTextContent('Test')
+  })
+})
+```

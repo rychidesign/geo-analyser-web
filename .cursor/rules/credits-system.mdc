@@ -1,0 +1,247 @@
+# Credit System Guide
+
+## Overview
+
+GEO Analyser uses a credit-based billing system:
+- **Free tier**: Limited monthly scans
+- **Paid tier**: Pay-as-you-go credits
+- **Test tier**: Unlimited (for testing)
+- **Admin tier**: Unlimited
+
+## User Tiers
+
+| Tier | Credits | Scans | Features |
+|------|---------|-------|----------|
+| `free` | N/A | 10/month | Limited models, no scheduling |
+| `paid` | Pay-as-you-go | Unlimited* | All models, scheduling |
+| `test` | Unlimited | Unlimited | Testing purposes |
+| `admin` | Unlimited | Unlimited | Full access |
+
+*Limited by credit balance
+
+## Core Concepts
+
+### Credit Balance
+- Stored in cents (`credit_balance_cents` in `user_profiles`)
+- Deducted for each scan based on token usage
+- Can be topped up via payment
+
+### Credit Reservation
+Before a scan starts:
+1. Estimate scan cost
+2. Reserve credits (deduct from balance)
+3. Run scan
+4. Consume reservation (charge actual cost, refund difference)
+
+This prevents users from running scans without sufficient credits.
+
+## Key Functions (`lib/credits/index.ts`)
+
+### Get User Credit Info
+```typescript
+import { getUserCreditInfo } from '@/lib/credits'
+
+const info = await getUserCreditInfo(userId)
+// Returns:
+// {
+//   tier: 'paid',
+//   balanceUsd: 5.50,
+//   balanceCents: 550,
+//   canUsePaidFeatures: true,
+//   freeScansRemaining: 0,
+//   freeScansLimit: 10,
+// }
+```
+
+### Add Credits (Top-up)
+```typescript
+import { addCredits, processTopUp } from '@/lib/credits'
+
+// Simple add
+await addCredits(userId, 500, 'top_up', {
+  description: 'Top-up: $5.00',
+  referenceType: 'paddle_payment',
+  referenceId: 'pay_xxx',
+})
+
+// With bonus calculation
+await processTopUp(userId, 10.00, 'pay_xxx')
+// Adds bonus based on amount
+```
+
+### Create Reservation (Before Scan)
+```typescript
+import { createReservation } from '@/lib/credits'
+
+const result = await createReservation(userId, estimatedCostCents, projectId)
+if (!result.success) {
+  return { error: result.error } // 'Insufficient credits'
+}
+// result.reservationId - use in scan
+```
+
+### Consume Reservation (After Scan)
+```typescript
+import { consumeReservation } from '@/lib/credits'
+
+await consumeReservation(
+  reservationId,
+  actualCostCents,  // Actual cost from scan
+  scanId
+)
+// Refunds difference if reserved more than actual
+```
+
+### Release Reservation (Scan Failed/Cancelled)
+```typescript
+import { releaseReservation } from '@/lib/credits'
+
+await releaseReservation(reservationId, 'Scan cancelled by user')
+// Returns full reserved amount to user
+```
+
+## Cost Calculation
+
+### From Code (Static Pricing)
+```typescript
+import { calculateCost } from '@/lib/llm/types'
+
+const costUsd = calculateCost(modelId, inputTokens, outputTokens)
+```
+
+### From Database (Dynamic Pricing)
+```typescript
+import { calculateDynamicCost } from '@/lib/credits'
+
+const costCents = await calculateDynamicCost(modelId, inputTokens, outputTokens)
+// Includes markup from pricing_config table
+```
+
+## Database Tables
+
+### user_profiles
+```sql
+tier                    -- free|paid|test|admin
+credit_balance_cents    -- Current balance
+paid_credits_cents      -- Total paid credits added
+bonus_credits_cents     -- Total bonus credits added
+free_scans_used_this_month
+free_scans_reset_at
+test_simulate_no_credits -- For testing credit flow
+```
+
+### credit_transactions
+Records all credit movements:
+```sql
+type          -- top_up|bonus|usage|admin_adjustment
+amount_cents  -- Positive for add, negative for usage
+balance_after_cents
+description
+reference_type
+reference_id
+```
+
+### credit_reservations
+Active scan reservations:
+```sql
+user_id
+scan_id
+amount_cents
+status        -- active|consumed|released
+```
+
+### pricing_config ⚠️ DATABASE MANAGED
+```sql
+provider
+model
+base_input_cost_cents   -- Per 1M tokens
+base_output_cost_cents  -- Per 1M tokens
+markup_percentage
+is_active
+```
+
+### tier_limits ⚠️ DATABASE MANAGED
+```sql
+tier
+max_projects
+max_queries_per_project
+max_scans_per_month
+can_use_all_models
+can_schedule_scans
+```
+
+## Scan Cost Flow
+
+```
+1. User clicks "Run Scan"
+       │
+       ▼
+2. Estimate cost (queries × models × avg tokens × price)
+       │
+       ▼
+3. Create reservation
+   - Free tier: Check scan limit
+   - Paid tier: Reserve estimated credits
+   - Test/Admin: Skip
+       │
+       ▼
+4. Run scan
+   - Track actual tokens/cost per result
+       │
+       ▼
+5. Complete scan
+   - Calculate total actual cost
+   - Consume reservation
+   - Refund difference (if any)
+   - Record in monthly_usage
+```
+
+## Free Tier Handling
+
+```typescript
+// Check if user can run scan
+const profile = await getUserProfile(userId)
+const limits = await getTierLimits('free')
+
+if (profile.tier === 'free') {
+  if (profile.free_scans_used_this_month >= limits.max_scans_per_month) {
+    return { error: 'Monthly free scan limit reached' }
+  }
+  // Increment counter
+  profile.free_scans_used_this_month++
+}
+
+// Monthly reset (checked on each request)
+await checkAndResetFreeTierLimits(userId)
+```
+
+## Admin Operations
+
+Admin operations use service role client to bypass RLS:
+
+```typescript
+import { createAdminClient } from '@/lib/supabase/server'
+
+// Update user tier
+await updateUserTier(userId, 'paid')
+
+// Add credits manually
+await addCredits(userId, 1000, 'admin_adjustment', {
+  description: 'Manual credit adjustment',
+  createdBy: adminUserId,
+})
+```
+
+## Testing Credit Flow
+
+For test accounts, you can simulate no credits:
+
+```typescript
+// Enable simulation
+await toggleTestCreditSimulation(userId, true)
+// Now test account behaves like paid account with no credits
+
+// Disable simulation
+await toggleTestCreditSimulation(userId, false)
+// Back to unlimited test mode
+```

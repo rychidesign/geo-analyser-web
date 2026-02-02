@@ -1,0 +1,167 @@
+# Critical Rules - MUST READ
+
+## 🤖 Recommended AI Models for Tasks
+
+| Task Type | Recommended Model | Cost |
+|-----------|-------------------|------|
+| Simple bugfixes, UI/styling | Gemini 2.5 Flash Lite | 💚 Cheap |
+| Small changes, refactoring | Gemini 3 Flash | 💚 Cheap |
+| New features, components | GPT-5 Mini / Sonnet | 💛 Medium |
+| Complex architecture | Opus / Sonnet | 🔴 Expensive |
+| Critical systems (credits, billing) | Opus / Sonnet | 🔴 Expensive |
+
+### Use cheaper models (Gemini Flash) for:
+- UI fixes and styling
+- Simple components
+- Writing tests
+- Documentation
+- Basic API endpoints
+- Refactoring
+
+### Use stronger models (Sonnet/Opus) for:
+- Credit system changes
+- Scan engine modifications
+- Complex business logic
+- Working with protected files
+- Architectural decisions
+
+---
+
+## 🚨 NEVER MODIFY Without Explicit Permission
+
+### 1. LLM Models Configuration
+**Files**: `lib/llm/types.ts`, `lib/ai/providers.ts`
+
+These files contain:
+- `AVAILABLE_MODELS` array - list of all LLM models
+- `MODEL_PRICING` - pricing per 1M tokens
+- `MODEL_MAP` in provider files - API model name mappings
+- `DEFAULT_MODELS` - default models per provider
+
+**Why**: Model definitions and pricing must match the actual LLM provider APIs. Incorrect changes can cause:
+- Scans to fail
+- Incorrect cost calculations
+- API errors
+
+**When updating is needed**: Only update when the user explicitly requests to add/modify models or pricing.
+
+### 2. Database Pricing Tables
+**Tables**: `pricing_config`, `tier_limits`
+
+These are managed through Supabase dashboard, not code.
+
+### 3. Credit System Core Logic
+**File**: `lib/credits/index.ts`
+
+The credit reservation and consumption flow is critical for billing accuracy.
+
+---
+
+## 🌍 Language Requirements
+
+### Frontend UI: ALWAYS English
+All user-facing text (labels, buttons, messages, placeholders) must be in English.
+
+### Code: English
+All code, comments, and variable names in English.
+
+### Agent Communication: Czech OK
+You can communicate with the user in Czech, but code stays in English.
+
+---
+
+## 🔌 LLM Integration Architecture
+
+### Two Systems - Don't Confuse Them!
+
+#### 1. User Scans (`lib/llm/*`)
+- Uses **user's own API keys** (stored encrypted in `user_settings`)
+- Direct SDK calls to providers
+- Files: `lib/llm/openai.ts`, `lib/llm/anthropic.ts`, etc.
+
+#### 2. Internal AI Operations (`lib/ai/*`)
+- Uses **Vercel AI Gateway** with app's API key
+- For: Query generation, AI evaluation
+- File: `lib/ai/providers.ts`
+- Env vars: `VERCEL_AI_GATEWAY_SECRET_KEY` or fallback to direct keys
+
+---
+
+## ⏱️ Vercel Limits
+
+- **API Timeout**: 22 seconds (Hobby plan limit is 25s)
+- **Edge Functions**: More restrictive
+- All LLM calls have `API_TIMEOUT_MS = 22000`
+
+---
+
+## 🗄️ Database Rules
+
+### Always Use Supabase Client
+```typescript
+import { createClient } from '@/lib/supabase/server'
+// or for admin operations:
+import { createAdminClient } from '@/lib/supabase/server'
+```
+
+### Table Names
+Use constants from `lib/db/schema.ts`:
+```typescript
+import { TABLES } from '@/lib/db/schema'
+// TABLES.PROJECTS, TABLES.SCANS, etc.
+```
+
+### RLS (Row Level Security)
+All tables have RLS enabled. Users can only access their own data.
+Admin operations need `createAdminClient()`.
+
+---
+
+## 🧪 Testing Requirements
+
+After implementing any feature:
+1. **Run tests**: `npm run test:run` (must pass all 44+ tests)
+2. **Verify build**: `npm run build`
+3. **Manual test** in browser (`npm run dev`)
+4. Check for console errors
+5. Verify database operations work correctly
+
+See `testing.mdc` for full testing guide and how to add new tests.
+
+---
+
+## 🚀 Deployment Commands
+
+### "Nasaď na dev" / "Deploy to dev"
+1. `npm run test:run` (must pass)
+2. `npm run build` (must pass)
+3. Commit and push to `develop` branch
+4. Vercel auto-deploys Preview
+
+### "Nasaď na produkci" / "Deploy to production"  
+1. `npm run test:run` (must pass)
+2. `npm run build` (must pass)
+3. Merge `develop` → `main`
+4. Push to `main`
+5. Update CHANGELOG.md
+6. Vercel auto-deploys Production
+
+⚠️ **Never deploy untested code to production!**
+
+See `git-workflow.mdc` for detailed deployment procedures.
+
+---
+
+## 📁 File Organization
+
+### API Routes
+```
+app/api/[resource]/route.ts           # Collection (GET list, POST create)
+app/api/[resource]/[id]/route.ts      # Single item (GET, PUT, DELETE)
+app/api/[resource]/[id]/[action]/route.ts  # Actions
+```
+
+### Components
+- Reusable UI → `components/ui/`
+- Feature-specific → `components/[feature]/`
+- Pages → `app/(dashboard)/dashboard/[page]/page.tsx`
