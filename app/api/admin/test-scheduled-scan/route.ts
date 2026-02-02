@@ -89,18 +89,39 @@ export async function POST(request: NextRequest) {
     console.log(`[Test Scheduled Scan] Created history record ${historyRecord.id}, triggering worker...`)
 
     // Trigger the process-scan worker
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    // Use NEXT_PUBLIC_APP_URL first (production URL), then VERCEL_URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL 
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+      || 'http://localhost:3000'
+    
+    const cronSecret = process.env.CRON_SECRET
 
     let workerResult: any = null
     let workerError: string | null = null
 
+    // Debug info
+    console.log(`[Test Scheduled Scan] Using baseUrl: ${baseUrl}`)
+    console.log(`[Test Scheduled Scan] CRON_SECRET exists: ${!!cronSecret}`)
+
+    if (!cronSecret) {
+      return NextResponse.json({
+        success: true,
+        message: 'Scheduled scan record created, but CRON_SECRET not configured',
+        historyId: historyRecord.id,
+        projectName: project.name,
+        workerError: 'CRON_SECRET environment variable is not set',
+        workerResponse: null
+      })
+    }
+
     try {
-      const workerResponse = await fetch(`${baseUrl}/api/cron/process-scan?worker=test`, {
+      const workerUrl = `${baseUrl}/api/cron/process-scan?worker=test`
+      console.log(`[Test Scheduled Scan] Calling worker: ${workerUrl}`)
+      
+      const workerResponse = await fetch(workerUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.CRON_SECRET || 'dev'}`,
+          'Authorization': `Bearer ${cronSecret}`,
           'Content-Type': 'application/json'
         }
       })
