@@ -21,16 +21,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is admin
+    // Check if user is admin (tier === 'admin')
     const { data: profile } = await supabase
       .from(TABLES.USER_PROFILES)
-      .select('is_admin')
+      .select('tier')
       .eq('user_id', user.id)
       .single()
 
     // Allow in development or for admins
     const isDev = process.env.NODE_ENV === 'development'
-    if (!isDev && !profile?.is_admin) {
+    const isAdmin = profile?.tier === 'admin'
+    if (!isDev && !isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Allow admins to test any project, regular users only their own
-    if (!profile?.is_admin && project.user_id !== user.id) {
+    if (!isAdmin && project.user_id !== user.id) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
