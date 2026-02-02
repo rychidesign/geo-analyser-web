@@ -85,7 +85,7 @@ export async function callAI(config: AICallConfig): Promise<AICallResult> {
       model: client(formattedModelId),
       system: config.systemPrompt,
       prompt: config.userPrompt,
-      maxOutputTokens: config.maxOutputTokens || 2048,
+      maxOutputTokens: config.maxOutputTokens || 4096,
       temperature: config.temperature ?? 0.7,
     })
     
@@ -195,7 +195,7 @@ export async function callGEOQuery(
   // GPT-5 Nano and other chain-of-thought models need higher token limits
   // because they use tokens for internal "thinking" that doesn't count as visible output
   const isChainOfThoughtModel = ['gpt-5-nano'].includes(model)
-  const maxOutputTokens = isChainOfThoughtModel ? 4096 : 1024
+  const maxOutputTokens = isChainOfThoughtModel ? 8192 : 4096
   
   return callAI({
     model,
@@ -258,7 +258,7 @@ Return ONLY a JSON object with this exact structure (no explanation):
 
   // Use higher token limit for chain-of-thought models
   const isChainOfThoughtModel = ['gpt-5-nano'].includes(model)
-  const maxOutputTokens = isChainOfThoughtModel ? 2048 : 512
+  const maxOutputTokens = isChainOfThoughtModel ? 4096 : 1024
   
   const result = await callAI({
     model,
