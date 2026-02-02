@@ -114,12 +114,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get usage stats (tokens and costs) for all users from scans
+    // Use admin client to bypass RLS and see all users' data
+    const adminSupabase = createAdminClient()
     const userIds = profiles?.map(p => p.user_id) || []
     const usageStatsMap = new Map<string, { totalTokens: number; totalScans: number; totalCostUsd: number }>()
     
     if (userIds.length > 0) {
-      // Get aggregated scan data per user
-      const { data: scansData } = await supabase
+      // Get aggregated scan data per user (using admin client to bypass RLS)
+      const { data: scansData } = await adminSupabase
         .from('scans')
         .select('user_id, total_input_tokens, total_output_tokens, total_cost_usd')
         .in('user_id', userIds)
@@ -134,8 +136,8 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      // Get credit transactions (usage type = credits spent)
-      const { data: transactionsData } = await supabase
+      // Get credit transactions (usage type = credits spent) - using admin client
+      const { data: transactionsData } = await adminSupabase
         .from('credit_transactions')
         .select('user_id, amount_cents')
         .in('user_id', userIds)
