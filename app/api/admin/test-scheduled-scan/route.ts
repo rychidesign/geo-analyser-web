@@ -59,6 +59,13 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Test Scheduled Scan] Creating scheduled scan for project: ${project.name}`)
 
+    // Check service role key is available
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ 
+        error: 'Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY not set' 
+      }, { status: 500 })
+    }
+
     // Use admin client to bypass RLS for scheduled_scan_history insert
     const adminSupabase = createAdminClient()
     
@@ -86,22 +93,38 @@ export async function POST(request: NextRequest) {
       ? `https://${process.env.VERCEL_URL}` 
       : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-    const workerResponse = await fetch(`${baseUrl}/api/cron/process-scan?worker=test`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.CRON_SECRET || 'dev'}`,
-        'Content-Type': 'application/json'
-      }
-    })
+    let workerResult: any = null
+    let workerError: string | null = null
 
-    const workerResult = await workerResponse.json()
+    try {
+      const workerResponse = await fetch(`${baseUrl}/api/cron/process-scan?worker=test`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.CRON_SECRET || 'dev'}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const contentType = workerResponse.headers.get('content-type')
+      if (contentType?.includes('application/json')) {
+        workerResult = await workerResponse.json()
+      } else {
+        const text = await workerResponse.text()
+        workerError = `Worker returned non-JSON (status ${workerResponse.status}): ${text.substring(0, 200)}`
+        console.error('[Test Scheduled Scan] Worker error:', workerError)
+      }
+    } catch (workerErr: any) {
+      workerError = `Worker call failed: ${workerErr.message}`
+      console.error('[Test Scheduled Scan] Worker exception:', workerErr)
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Scheduled scan triggered',
+      message: 'Scheduled scan record created' + (workerResult ? ', worker triggered' : ', worker trigger failed'),
       historyId: historyRecord.id,
       projectName: project.name,
-      workerResponse: workerResult
+      workerResponse: workerResult,
+      workerError
     })
 
   } catch (error: any) {
