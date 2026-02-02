@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { TABLES } from '@/lib/db/schema'
 
 /**
@@ -59,9 +59,12 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Test Scheduled Scan] Creating scheduled scan for project: ${project.name}`)
 
+    // Use admin client to bypass RLS for scheduled_scan_history insert
+    const adminSupabase = createAdminClient()
+    
     // Create a pending record in scheduled_scan_history
     const now = new Date().toISOString()
-    const { data: historyRecord, error: historyError } = await supabase
+    const { data: historyRecord, error: historyError } = await adminSupabase
       .from(TABLES.SCHEDULED_SCAN_HISTORY)
       .insert({
         project_id: projectId,
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     if (historyError) {
       console.error('[Test Scheduled Scan] Failed to create history record:', historyError)
-      return NextResponse.json({ error: 'Failed to create scheduled scan record' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create scheduled scan record', details: historyError.message }, { status: 500 })
     }
 
     console.log(`[Test Scheduled Scan] Created history record ${historyRecord.id}, triggering worker...`)
