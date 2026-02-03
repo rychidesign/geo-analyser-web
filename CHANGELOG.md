@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.1.0] - 2026-02-03
+
 ### Added
 - Vitest testing framework with React Testing Library
 - 44 unit tests for credit system and LLM types
@@ -38,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.1.0 | 2026-02-03 | Added testing framework, MDC docs, and git workflow |
 | 1.0.0 | 2026-02-02 | Initial release |
 
 ---
