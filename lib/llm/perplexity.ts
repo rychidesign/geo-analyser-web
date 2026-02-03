@@ -1,4 +1,4 @@
-import type { LLMConfig, LLMResponse, ConversationMessage } from './types'
+import type { LLMConfig, LLMResponse, ConversationMessage } from '@/lib/ai'
 
 // Map our model IDs to actual Perplexity API model names
 const MODEL_MAP: Record<string, string> = {

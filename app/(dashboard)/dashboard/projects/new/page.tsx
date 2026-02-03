@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { AVAILABLE_MODELS, getModelsByProvider, type LLMProvider, type LLMModel } from '@/lib/llm/types'
+import { AVAILABLE_MODELS, getModelsByProvider, type LLMProvider } from '@/lib/ai'
 import { useToast } from '@/components/ui/toast'
 import { usePricing, formatPrice } from '@/lib/hooks/use-pricing'
 
@@ -84,7 +84,7 @@ export default function NewProjectPage() {
   const [keywords, setKeywords] = useState<string[]>([])
   const [newBrand, setNewBrand] = useState('')
   const [newKeyword, setNewKeyword] = useState('')
-  const [selectedModels, setSelectedModels] = useState<LLMModel[]>(['gpt-5-2'])
+  const [selectedModels, setSelectedModels] = useState<string[]>(['gpt-5-2'])
   
   // AI Helper models state
   const [queryGenerationModel, setQueryGenerationModel] = useState('gpt-5-mini')
@@ -208,7 +208,7 @@ export default function NewProjectPage() {
     setKeywords(prev => prev.filter(k => k !== keyword))
   }
 
-  const toggleModel = (model: LLMModel) => {
+  const toggleModel = (model: string) => {
     setSelectedModels(prev => 
       prev.includes(model) ? prev.filter(m => m !== model) : [...prev, model]
     )

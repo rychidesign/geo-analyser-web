@@ -7,7 +7,7 @@ export const maxDuration = 60  // Increased timeout for LLM calls
 
 // Check if Gateway is configured (check at runtime, not module load)
 function isGatewayEnabled(): boolean {
-  return !!process.env.VERCEL_AI_GATEWAY_SECRET_KEY
+  return !!(process.env.VERCEL_AI_GATEWAY_SECRET_KEY || process.env.AI_GATEWAY_API_KEY)
 }
 
 // System prompt for follow-up queries (avoid circular import issues)
@@ -126,44 +126,10 @@ export async function POST(request: NextRequest) {
       })
     }
     
-    // Fallback: Use database-stored API keys
-    const { getUserApiKeys } = await import('@/lib/db/settings')
-    const { callLLM, GEO_SYSTEM_PROMPT } = await import('@/lib/llm')
-    
-    const userApiKeys = await getUserApiKeys(user.id)
-    if (!userApiKeys) {
-      return NextResponse.json({ error: 'No API keys configured. Contact admin.' }, { status: 400 })
-    }
-
-    const apiKeyField = `${modelInfo.provider}_api_key` as keyof typeof userApiKeys
-    const apiKey = userApiKeys[apiKeyField]
-
-    if (!apiKey) {
-      return NextResponse.json({ 
-        error: `No API key for ${modelInfo.provider}. This model requires Gateway or database API key.` 
-      }, { status: 400 })
-    }
-
-    console.log(`[LLM Proxy] Calling ${model} for user ${user.id} (direct API)`)
-    const response = await callLLM(
-      {
-        provider: modelInfo.provider as any,
-        apiKey: apiKey as string,
-        model: model as any,
-      },
-      GEO_SYSTEM_PROMPT,
-      query
-    )
-
-    const duration = Date.now() - startTime
-    console.log(`[LLM Proxy] ${model} responded in ${duration}ms`)
-
-    return NextResponse.json({
-      content: response.content,
-      inputTokens: response.inputTokens,
-      outputTokens: response.outputTokens,
-      duration,
-    })
+    // Gateway is required - no fallback mode
+    return NextResponse.json({ 
+      error: 'AI Gateway is not configured. Please set AI_GATEWAY_API_KEY environment variable.' 
+    }, { status: 503 })
   } catch (error: any) {
     const duration = Date.now() - startTime
     console.error(`[LLM Proxy] Error after ${duration}ms:`, error.message || error)

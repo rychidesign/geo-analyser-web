@@ -108,7 +108,7 @@ components/ui/
 ### Setup
 
 1. ✅ Enable AI Gateway in Vercel Dashboard
-2. ✅ Configure provider keys in Vercel (AI_GATEWAY_API_KEY)
+2. ✅ Configure provider keys in Vercel (VERCEL_AI_GATEWAY_SECRET_KEY or AI_GATEWAY_API_KEY)
 3. ✅ Update LLM calls to use Gateway
 
 ### Implementation
@@ -267,7 +267,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 
 # Vercel AI Gateway
-AI_GATEWAY_API_KEY=        # Required for AI calls
+VERCEL_AI_GATEWAY_SECRET_KEY=  # Required for AI calls (Vercel default name)
+AI_GATEWAY_API_KEY=           # Optional alias for AI calls
 
 # Cron Jobs
 CRON_SECRET=               # Secret for Vercel cron authentication

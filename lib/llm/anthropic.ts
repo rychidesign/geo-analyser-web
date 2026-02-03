@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { LLMConfig, LLMResponse, ConversationMessage } from './types'
+import type { LLMConfig, LLMResponse, ConversationMessage } from '@/lib/ai'
 
 // Map our model IDs to actual Anthropic API model names
 // Using aliases that automatically point to the latest model versions

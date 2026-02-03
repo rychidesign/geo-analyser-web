@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { AVAILABLE_MODELS, getModelsByProvider, type LLMProvider, type LLMModel } from '@/lib/llm/types'
+import { AVAILABLE_MODELS, getModelsByProvider, type LLMProvider } from '@/lib/ai'
 import { usePricing } from '@/lib/hooks/use-pricing'
 import type { Project } from '@/lib/db/schema'
 
@@ -201,7 +201,7 @@ export default function ProjectSettingsPage() {
   const [keywords, setKeywords] = useState<string[]>([])
   const [newBrand, setNewBrand] = useState('')
   const [newKeyword, setNewKeyword] = useState('')
-  const [selectedModels, setSelectedModels] = useState<LLMModel[]>(['gpt-5-nano'])
+  const [selectedModels, setSelectedModels] = useState<string[]>(['gpt-5-nano'])
   const [modelsChanged, setModelsChanged] = useState(false)
   
   // Scheduled scan state
@@ -273,7 +273,7 @@ export default function ProjectSettingsPage() {
     setKeywords(prev => prev.filter(k => k !== keyword))
   }
 
-  const toggleModel = (model: LLMModel) => {
+  const toggleModel = (model: string) => {
     setSelectedModels(prev => {
       const newModels = prev.includes(model)
         ? prev.filter(m => m !== model)

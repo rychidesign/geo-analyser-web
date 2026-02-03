@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import type { ProjectQuery, Project } from '@/lib/db/schema'
 import { useToast } from '@/components/ui/toast'
-import { MODEL_PRICING, AVAILABLE_MODELS } from '@/lib/llm/types'
+import { MODEL_PRICING, AVAILABLE_MODELS } from '@/lib/ai'
 import { usePricing } from '@/lib/hooks/use-pricing'
 
 const QUERY_TYPES = [

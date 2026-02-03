@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, Content } from '@google/generative-ai'
-import type { LLMConfig, LLMResponse, ConversationMessage } from './types'
+import type { LLMConfig, LLMResponse, ConversationMessage } from '@/lib/ai'
 
 // Map our model IDs to actual Google AI API model names
 const MODEL_MAP: Record<string, string> = {

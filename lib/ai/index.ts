@@ -9,12 +9,124 @@ import {
   getModelInfo, 
   calculateBaseCost,
   resolveModelId,
+  getProviderFromModelId,
   AVAILABLE_MODELS,
   type AIProvider,
   type ModelInfo,
 } from './providers'
 
+// Re-export everything from providers
 export * from './providers'
+
+// =====================================================
+// Backward Compatibility Exports
+// (for code migrating from lib/llm/types)
+// =====================================================
+
+// Re-export type with legacy name
+export type { AIProvider as LLMProvider } from './providers'
+
+// Legacy MODEL_PRICING map (derived from AVAILABLE_MODELS)
+export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
+  Object.fromEntries(AVAILABLE_MODELS.map(m => [m.id, m.pricing]))
+
+// Legacy LLMModel type union (for strict typing)
+export type LLMModel = 
+  | 'gpt-5-2'
+  | 'gpt-5-mini'
+  | 'gpt-5-nano'
+  | 'claude-sonnet-4-5'
+  | 'claude-opus-4-5'
+  | 'claude-haiku-4-5'
+  | 'claude-opus-4-1'
+  | 'gemini-3-flash-preview'
+  | 'gemini-2-5-flash'
+  | 'gemini-2-5-flash-lite'
+  | 'llama-4-scout'
+  | 'llama-4-maverick'
+  | 'sonar-reasoning-pro'
+
+// Legacy calculateCost function (use calculateBaseCost instead)
+export function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
+  return calculateBaseCost(model, inputTokens, outputTokens)
+}
+
+// Legacy DEFAULT_MODELS (cheapest model per provider)
+export const DEFAULT_MODELS: Record<string, LLMModel> = {
+  openai: 'gpt-5-nano',
+  anthropic: 'claude-haiku-4-5',
+  google: 'gemini-2-5-flash-lite',
+  groq: 'llama-4-scout',
+  perplexity: 'sonar-reasoning-pro',
+}
+
+// Legacy getProviderForModel (use getProviderFromModelId instead)
+export function getProviderForModel(modelId: string) {
+  return getProviderFromModelId(modelId)
+}
+
+// Legacy LLMConfig interface
+export interface LLMConfig {
+  provider: AIProvider
+  apiKey: string
+  model: string
+}
+
+// Legacy ConversationMessage interface
+export interface ConversationMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+// Legacy LLMResponse interface
+export interface LLMResponse {
+  content: string
+  inputTokens: number
+  outputTokens: number
+  model: string
+}
+
+// Legacy LLMResult interface
+export interface LLMResult extends LLMResponse {
+  provider: AIProvider
+  costUsd: number
+}
+
+// Legacy callLLM function (for backward compatibility with lib/llm)
+// Note: This does NOT use direct API keys - it always uses Gateway
+// For direct API with user keys, use the old lib/llm temporarily
+export async function callLLM(
+  config: LLMConfig,
+  systemPrompt: string,
+  userPrompt: string,
+  conversationHistory?: ConversationMessage[]
+): Promise<LLMResult> {
+  // Build prompt with conversation history if provided
+  let finalPrompt = userPrompt
+  if (conversationHistory && conversationHistory.length > 0) {
+    const historyText = conversationHistory
+      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+      .join('\n\n')
+    finalPrompt = `Previous conversation:\n${historyText}\n\nUser: ${userPrompt}`
+  }
+
+  const result = await callAI({
+    model: config.model,
+    systemPrompt,
+    userPrompt: finalPrompt,
+    maxOutputTokens: 4096,
+    temperature: 0.7,
+  })
+
+  return {
+    content: result.content,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+    model: result.model,
+    provider: result.provider,
+    costUsd: result.baseCostUsd,
+  }
+}
 
 // =====================================================
 // Types

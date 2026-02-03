@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk'
-import type { LLMConfig, LLMResponse, ConversationMessage } from './types'
+import type { LLMConfig, LLMResponse, ConversationMessage } from '@/lib/ai'
 
 // Map our model IDs to actual Groq API model names
 const MODEL_MAP: Record<string, string> = {

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { callLLM, getGEOSystemPrompt } from '@/lib/llm'
-import type { LLMProvider, LLMModel, LLMConfig, ConversationMessage } from '@/lib/llm/types'
+import { callLLM, getGEOSystemPrompt } from '@/lib/llm'  // Keep using lib/llm for user-stored keys fallback
+import type { LLMProvider, LLMModel, LLMConfig, ConversationMessage } from '@/lib/ai'
 import type { Project, ProjectQuery, Scan, ScanResult, ScanMetrics } from '@/lib/db/schema'
 import { TABLES } from '@/lib/db/schema'
 import { getFollowUpQuestion, calculateWeightedScore } from './follow-up-templates'

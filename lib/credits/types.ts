@@ -126,9 +126,9 @@ export const TOP_UP_OPTIONS = [
 
 // Default free tier limits
 export const FREE_TIER_DEFAULTS = {
-  maxProjects: 1,
+  maxProjects: 3,
   maxQueriesPerProject: 5,
-  maxScansPerMonth: 2,
+  maxScansPerMonth: 3,
 } as const
 
 // =====================================================

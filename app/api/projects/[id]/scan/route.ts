@@ -1,9 +1,13 @@
+// ⚠️ DEPRECATED ENDPOINT: Use scan/start instead for new implementations
+// This endpoint uses user-stored API keys (legacy flow)
+// Recommended: Use scan/start → queue → cron/process-scan (Gateway-based)
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getProjectById, getProjectQueries } from '@/lib/db/projects'
 import { getUserApiKeys } from '@/lib/db/settings'
 import { runScan } from '@/lib/scan/engine'
-import { AVAILABLE_MODELS, type LLMModel, type LLMProvider } from '@/lib/llm/types'
+import { AVAILABLE_MODELS, type LLMModel, type LLMProvider } from '@/lib/ai'
 
 interface RouteParams {
   params: Promise<{ id: string }>

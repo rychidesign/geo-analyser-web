@@ -1,12 +1,16 @@
+// ⚠️ DEPRECATED: This module is deprecated. Use @/lib/ai instead.
+// See lib/llm/README.md for migration guide.
+
 import { callOpenAI } from './openai'
 import { callAnthropic } from './anthropic'
 import { callGoogle } from './google'
 import { callGroq } from './groq'
 import { callPerplexity } from './perplexity'
 import { calculateDynamicCost } from '@/lib/credits'
-import type { LLMConfig, LLMResponse, LLMCost, LLMProvider, ConversationMessage } from './types'
+import type { LLMConfig, LLMResponse, LLMProvider, ConversationMessage } from '@/lib/ai'
 
-export * from './types'
+// Re-export types from lib/ai (for backward compatibility)
+export type { LLMConfig, LLMResponse, LLMProvider, ConversationMessage } from '@/lib/ai'
 
 export interface LLMResult extends LLMResponse {
   provider: LLMProvider

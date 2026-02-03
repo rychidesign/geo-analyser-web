@@ -95,8 +95,8 @@ export async function getTierLimits(tier: UserTier): Promise<TierLimits> {
   const defaultLimits: TierLimits = {
     tier,
     max_projects: tier === 'admin' ? 99999 : tier === 'free' ? 3 : 100,
-    max_queries_per_project: tier === 'admin' ? 99999 : tier === 'free' ? 20 : 100,
-    max_scans_per_month: tier === 'admin' ? 99999 : tier === 'free' ? 10 : 1000,
+    max_queries_per_project: tier === 'admin' ? 99999 : tier === 'free' ? 5 : 100,
+    max_scans_per_month: tier === 'admin' ? 99999 : tier === 'free' ? 3 : 1000,
     can_use_all_models: tier !== 'free',
     can_schedule_scans: tier !== 'free',
     description: `${tier} tier`,

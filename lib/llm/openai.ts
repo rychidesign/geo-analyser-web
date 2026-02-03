@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import type { LLMConfig, LLMResponse, LLMModel, ConversationMessage } from './types'
+import type { LLMConfig, LLMResponse, ConversationMessage } from '@/lib/ai'
 
 // Map our model IDs to actual OpenAI API model names
 const MODEL_MAP: Record<string, string> = {

@@ -341,7 +341,7 @@ export function getProviderClient(modelId: string): { client: ReturnType<typeof 
 export function getGatewayClient() {
   const apiKey = getGatewayApiKey()
   if (!apiKey) {
-    throw new Error('VERCEL_AI_GATEWAY_SECRET_KEY is not configured')
+    throw new Error('AI Gateway API key is not configured (VERCEL_AI_GATEWAY_SECRET_KEY or AI_GATEWAY_API_KEY)')
   }
   return createOpenAI({
     apiKey,

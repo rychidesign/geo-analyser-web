@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { calculateCost } from '@/lib/llm'
+import { calculateCost } from '@/lib/ai'
 import { TABLES, type ScanMetrics } from '@/lib/db/schema'
-import type { LLMModel } from '@/lib/llm/types'
+import type { LLMModel } from '@/lib/ai'
 
 export const runtime = 'edge'
 export const maxDuration = 10
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const cost = calculateCost(model as LLMModel, inputTokens, outputTokens)
 
     // Import model info
-    const { AVAILABLE_MODELS } = await import('@/lib/llm/types')
+    const { AVAILABLE_MODELS } = await import('@/lib/ai')
     const modelInfo = AVAILABLE_MODELS.find(m => m.id === model)
     
     if (!modelInfo) {
