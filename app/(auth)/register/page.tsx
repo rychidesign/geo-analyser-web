@@ -8,7 +8,6 @@ import { Loader2, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createClient } from '@/lib/supabase/client'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
@@ -17,12 +16,13 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [rateLimited, setRateLimited] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setRateLimited(false)
     setLoading(true)
 
     // Validate passwords match
@@ -40,16 +40,24 @@ export default function RegisterPage() {
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ email, password }),
       })
 
-      if (error) {
-        setError(error.message)
+      const data = await response.json()
+
+      if (response.status === 429) {
+        setRateLimited(true)
+        setError(data.error || 'Too many registration attempts. Please try again later.')
+        return
+      }
+
+      if (!response.ok) {
+        setError(data.error || 'Registration failed. Please try again.')
         return
       }
 
@@ -143,7 +151,14 @@ export default function RegisterPage() {
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-md">
+              <div className={`text-sm p-3 rounded-md ${
+                rateLimited 
+                  ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400' 
+                  : 'bg-red-500/10 border border-red-500/20 text-red-400'
+              }`}>
+                {rateLimited && (
+                  <span className="font-semibold">⚠️ Rate Limited: </span>
+                )}
                 {error}
               </div>
             )}

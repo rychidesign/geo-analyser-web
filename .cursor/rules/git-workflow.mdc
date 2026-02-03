@@ -12,8 +12,8 @@ feature/*   → Feature branches (local development)
 
 | Branch | Vercel | Supabase | URL |
 |--------|--------|----------|-----|
-| `main` | Production | **Production DB** | geo-analyser-web.vercel.app |
-| `develop` | Preview | **Test DB** | geo-analyser-web-git-develop-*.vercel.app |
+| `main` | Production | **Production DB** | https://geo-analyser-web.vercel.app |
+| `develop` | Preview | **Test DB** | https://geo-analyser-web-git-develop-rychidesigngmailcoms-projects.vercel.app |
 | `feature/*` | Preview | **Test DB** | (auto-generated) |
 
 ⚠️ **IMPORTANT**: Production DB contains real user data. Never test with production!

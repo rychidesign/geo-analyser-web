@@ -72,34 +72,44 @@ async function testMassAccountCreation() {
   console.log('TEST 1: Hromadné zakládání účtů')
   console.log('='.repeat(80))
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   const timestamp = Date.now()
   const attempts = 10 // Pokusíme se vytvořit 10 účtů rychle za sebou
 
   let successCount = 0
+  let rateLimitedCount = 0
   let failCount = 0
   const startTime = Date.now()
+
+  console.log('  Testování přes /api/auth/register endpoint (s rate limitingem)...')
+  console.log('  (Rate limit: 5 pokusů za 15 min pro auth, 3 registrace za hodinu)')
 
   for (let i = 0; i < attempts; i++) {
     const email = `test-security-${timestamp}-${i}@example.com`
     const password = 'TestPassword123!'
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+      const response = await fetch(`${BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
       })
 
-      if (error) {
-        failCount++
-        if (error.message.includes('rate limit') || error.message.includes('too many')) {
-          console.log(`  Attempt ${i + 1}: Rate limited (GOOD)`)
-        } else {
-          console.log(`  Attempt ${i + 1}: Failed - ${error.message}`)
-        }
-      } else if (data.user) {
+      if (response.status === 429) {
+        rateLimitedCount++
+        console.log(`  Attempt ${i + 1}: Rate limited (GOOD) - Status 429`)
+      } else if (response.ok) {
+        const data = await response.json()
         successCount++
-        console.log(`  Attempt ${i + 1}: Account created (email: ${email})`)
+        console.log(`  Attempt ${i + 1}: Registration initiated (email: ${email})`)
+      } else {
+        failCount++
+        const data = await response.json().catch(() => ({}))
+        console.log(`  Attempt ${i + 1}: Failed - Status ${response.status}`)
       }
     } catch (error: any) {
       failCount++
@@ -108,13 +118,18 @@ async function testMassAccountCreation() {
   }
 
   const duration = Date.now() - startTime
-  const accountsPerSecond = (successCount / duration) * 1000
+  const accountsPerSecond = successCount > 0 ? (successCount / duration) * 1000 : 0
+
+  // Test prošel pokud byl aktivován rate limiting
+  const passed = rateLimitedCount > 0
 
   logResult({
     test: 'Hromadné zakládání účtů',
-    passed: successCount < 5 || accountsPerSecond < 2, // Pokud se vytvoří méně než 5 účtů nebo méně než 2/s
-    details: `Vytvořeno ${successCount}/${attempts} účtů za ${duration}ms (${accountsPerSecond.toFixed(2)} účtů/s). ${failCount} pokusů selhalo.`,
-    severity: successCount >= 8 ? 'critical' : successCount >= 5 ? 'high' : 'medium',
+    passed,
+    details: passed 
+      ? `Rate limiting funguje! ${rateLimitedCount} pokusů zablokováno, ${successCount} účtů vytvořeno.`
+      : `Vytvořeno ${successCount}/${attempts} účtů za ${duration}ms (${accountsPerSecond.toFixed(2)} účtů/s). Žádný rate limiting!`,
+    severity: passed ? 'low' : (successCount >= 8 ? 'critical' : successCount >= 5 ? 'high' : 'medium'),
   })
 }
 
@@ -127,7 +142,6 @@ async function testBruteForceLogin() {
   console.log('TEST 2: Brute Force útok na přihlášení')
   console.log('='.repeat(80))
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   const testEmail = 'nonexistent@example.com'
   const passwords = [
     'password123',
@@ -145,34 +159,45 @@ async function testBruteForceLogin() {
   let blockedCount = 0
   let attemptCount = 0
 
+  console.log('  Testování přes /api/auth/login endpoint (s rate limitingem)...')
+
   for (const password of passwords) {
     attemptCount++
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: testEmail,
-        password,
+      // Volání našeho API endpointu s rate limitingem
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: testEmail,
+          password,
+        }),
       })
 
-      if (error) {
-        if (error.message.includes('rate limit') || error.message.includes('too many')) {
-          blockedCount++
-          console.log(`  Attempt ${attemptCount}: Blocked by rate limit (GOOD)`)
-          break
-        } else {
-          console.log(`  Attempt ${attemptCount}: Invalid credentials`)
-        }
+      if (response.status === 429) {
+        blockedCount++
+        console.log(`  Attempt ${attemptCount}: Blocked by rate limit (GOOD) - Status 429`)
+        break
+      } else if (response.status === 401) {
+        console.log(`  Attempt ${attemptCount}: Invalid credentials (Status 401)`)
+      } else {
+        const data = await response.json().catch(() => ({}))
+        console.log(`  Attempt ${attemptCount}: Status ${response.status}`)
       }
     } catch (error: any) {
       console.log(`  Attempt ${attemptCount}: Error - ${error.message}`)
     }
 
-    await delay(100) // Krátká pauza mezi pokusy
+    // Krátká pauza mezi pokusy (simulace útoku)
+    await delay(50)
   }
 
   logResult({
     test: 'Brute Force ochrana',
-    passed: blockedCount > 0 || attemptCount < passwords.length,
-    details: `${attemptCount} pokusů o přihlášení, ${blockedCount > 0 ? 'zablokováno rate limitem' : 'žádné blokování nezjištěno'}`,
+    passed: blockedCount > 0,
+    details: `${attemptCount} pokusů o přihlášení, ${blockedCount > 0 ? 'zablokováno rate limitem po ' + attemptCount + ' pokusech' : 'žádné blokování nezjištěno - KRITICKÉ!'}`,
     severity: blockedCount === 0 ? 'critical' : 'low',
   })
 }
@@ -727,70 +752,57 @@ async function testAPIRateLimiting() {
   console.log('TEST 10: Rate Limiting na API endpoints')
   console.log('='.repeat(80))
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  const timestamp = Date.now()
-  const testEmail = `ratelimit-test-${timestamp}@example.com`
-  const password = 'TestPassword123!'
+  // Test rate limitingu bez autentizace - testujeme middleware přímo
+  const requestCount = 120 // Víc než 100 limit za minutu
+  let blockedCount = 0
+  let successCount = 0
+  let errorCount = 0
 
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email: testEmail,
-      password,
-    })
+  console.log(`  Posílám ${requestCount} requestů na /api/projects rychle za sebou...`)
+  console.log('  (Rate limit by měl být 100 req/min)')
 
-    if (error || !data.session) {
-      logResult({
-        test: 'API Rate Limiting',
-        passed: false,
-        details: 'Test přeskočen - nelze vytvořit testovacího uživatele. DOPORUČENO: Implementovat rate limiting!',
-        severity: 'high',
-      })
-      return
-    }
-
-    const token = data.session.access_token
-    const requestCount = 50
-    let blockedCount = 0
-    let successCount = 0
-
-    console.log(`  Posílám ${requestCount} requestů rychle za sebou...`)
-
-    for (let i = 0; i < requestCount; i++) {
+  for (let i = 0; i < requestCount; i++) {
+    try {
       const response = await fetch(`${BASE_URL}/api/projects`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       })
 
       if (response.status === 429) {
         blockedCount++
-      } else if (response.ok) {
+        if (blockedCount === 1) {
+          console.log(`  Request ${i + 1}: Rate limit activated! (Status 429)`)
+        }
+      } else if (response.status === 401) {
+        // 401 je očekávaný pro neautentizovaný request, ale rate limit by měl přijít dřív
+        successCount++
+      } else {
         successCount++
       }
-
-      // Žádná pauza - testujeme rate limiting
+    } catch (error: any) {
+      errorCount++
     }
 
-    console.log(`  ${successCount} úspěšných requestů, ${blockedCount} zablokováno rate limitem`)
-
-    logResult({
-      test: 'API Rate Limiting',
-      passed: blockedCount > 0,
-      details: `${successCount}/${requestCount} requestů prošlo, ${blockedCount} zablokováno. ${blockedCount === 0 ? 'VAROVÁNÍ: Rate limiting není implementován!' : 'Rate limiting funguje'}`,
-      severity: blockedCount === 0 ? 'high' : 'low',
-    })
-
-    await supabase.auth.signOut()
-
-  } catch (error: any) {
-    logResult({
-      test: 'API Rate Limiting',
-      passed: false,
-      details: `Test error: ${error.message}. DOPORUČENO: Implementovat rate limiting!`,
-      severity: 'high',
-    })
+    // Žádná pauza - testujeme rate limiting
   }
+
+  console.log(`\n  Výsledky:`)
+  console.log(`    - Prošlo (401/200): ${successCount}`)
+  console.log(`    - Zablokováno (429): ${blockedCount}`)
+  console.log(`    - Chyby: ${errorCount}`)
+
+  const passed = blockedCount > 0
+
+  logResult({
+    test: 'API Rate Limiting',
+    passed,
+    details: passed 
+      ? `Rate limiting funguje! ${blockedCount}/${requestCount} requestů zablokováno po překročení limitu.`
+      : `VAROVÁNÍ: Rate limiting nefunguje! Všech ${successCount} requestů prošlo bez omezení.`,
+    severity: passed ? 'low' : 'high',
+  })
 }
 
 // ============================================================================
