@@ -1,16 +1,11 @@
 'use client'
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
-import { getFollowUpQuestion, type QueryType } from './follow-up-templates'
 
 // Types
-interface ConversationMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
-
 export interface ScanJob {
-  id: string  // scan ID from database
+  id: string          // Queue ID (initially) or scan ID (once created)
+  queueId: string     // Queue ID for status polling
   projectId: string
   projectName: string
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -21,8 +16,8 @@ export interface ScanJob {
   }
   error?: string
   errorCode?: string  // For specific error handling (SCAN_LIMIT_REACHED, INSUFFICIENT_CREDITS, etc.)
+  scanId?: string     // Actual scan ID once processing starts
   startedAt?: Date
-  reservationId?: string  // Credit reservation ID
 }
 
 interface ScanContextType {
@@ -51,447 +46,315 @@ export function useScan() {
   return context
 }
 
-// Note: All evaluation now uses AI via /api/scan/evaluate endpoint
-
 interface ScanProviderProps {
   children: React.ReactNode
 }
 
+// Polling interval for checking scan status (in ms)
+const POLL_INTERVAL = 2000
+
 export function ScanProvider({ children }: ScanProviderProps) {
   const [jobs, setJobs] = useState<ScanJob[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [initialized, setInitialized] = useState(false)
   
-  const processingRef = useRef(false)
-  const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
+  // Track active polling intervals
+  const pollingRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   
   // Use a ref to always have access to the latest jobs state
   const jobsRef = useRef<ScanJob[]>(jobs)
   useEffect(() => {
     jobsRef.current = jobs
+    // Update isProcessing based on current jobs
+    setIsProcessing(jobs.some(j => ['queued', 'running'].includes(j.status)))
   }, [jobs])
   
-  // Process the queue
-  const processQueue = useCallback(async () => {
-    if (processingRef.current) return
-    
-    const nextJob = jobsRef.current.find(job => job.status === 'queued')
-    if (!nextJob) {
-      setIsProcessing(false)
-      return
-    }
-    
-    processingRef.current = true
-    setIsProcessing(true)
-    
-    const abortController = new AbortController()
-    abortControllersRef.current.set(nextJob.projectId, abortController)
-    
-    try {
-      // Update job to running
-      setJobs(prev => prev.map(job => 
-        job.projectId === nextJob.projectId 
-          ? { ...job, status: 'running' as const, startedAt: new Date() }
-          : job
-      ))
-      
-      // 1. Start scan - creates scan record and gets config
-      const startRes = await fetch(`/api/projects/${nextJob.projectId}/scan/start`, {
-        method: 'POST',
-        signal: abortController.signal,
-      })
-      
-      if (!startRes.ok) {
-        const errorData = await startRes.json().catch(() => ({ error: 'Unknown error' }))
-        const error = new Error(errorData.error || `Failed to start scan (${startRes.status})`) as Error & { code?: string }
-        error.code = errorData.code
-        throw error
-      }
-      
-      const { 
-        scanId, 
-        queries, 
-        models, 
-        totalOperations, 
-        brandVariations, 
-        domain,
-        language,
-        reservationId,
-        followUpEnabled,
-        followUpDepth,
-      } = await startRes.json()
-      
-      // Update job with scan ID, reservation ID, and progress info
-      setJobs(prev => prev.map(job => 
-        job.projectId === nextJob.projectId 
-          ? { ...job, id: scanId, reservationId, progress: { current: 0, total: totalOperations, message: 'Starting...' } }
-          : job
-      ))
-      
-      // 2. Process each query × model (with optional follow-ups)
-      let completed = 0
-      
-      for (const query of queries) {
-        const queryType = (query.query_type || 'informational') as QueryType
-        
-        for (const model of models) {
-          // Check if cancelled
-          if (abortController.signal.aborted) {
-            throw new Error('Scan cancelled by user')
-          }
-          
-          // Update progress message
-          setJobs(prev => prev.map(job => 
-            job.projectId === nextJob.projectId 
-              ? { 
-                  ...job, 
-                  progress: { 
-                    current: completed, 
-                    total: totalOperations, 
-                    message: `Testing ${model}...` 
-                  } 
-                }
-              : job
-          ))
-          
-          try {
-            // === INITIAL QUERY (Level 0) ===
-            const llmRes = await fetch('/api/llm/call', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ model, query: query.query_text, language }),
-              signal: abortController.signal,
-            })
-            
-            if (!llmRes.ok) {
-              console.warn(`[Scan] LLM call failed for ${model}`)
-              continue
-            }
-            
-            const llmResult = await llmRes.json()
-            
-            // Evaluate initial response
-            let metrics
-            let evaluationCost = null
-            
-            const evalRes = await fetch('/api/scan/evaluate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                content: llmResult.content,
-                brandVariations,
-                domain,
-              }),
-              signal: abortController.signal,
-            })
-            
-            if (evalRes.ok) {
-              const evalResult = await evalRes.json()
-              metrics = evalResult.metrics
-              evaluationCost = evalResult.evaluation
-            } else {
-              throw new Error('AI evaluation failed')
-            }
-            
-            // Save initial result
-            const saveRes = await fetch('/api/scan/save-result', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                scanId,
-                model,
-                query: query.query_text,
-                response: llmResult.content,
-                inputTokens: llmResult.inputTokens,
-                outputTokens: llmResult.outputTokens,
-                metrics,
-                evaluationCost,
-                followUpLevel: 0,
-                parentResultId: null,
-                followUpQueryUsed: null,
-              }),
-              signal: abortController.signal,
-            })
-            
-            const saveResult = await saveRes.json()
-            let parentResultId = saveResult.resultId
-            
-            completed++
-            
-            // Update progress
-            setJobs(prev => prev.map(job => 
-              job.projectId === nextJob.projectId 
-                ? { ...job, progress: { current: completed, total: totalOperations } }
-                : job
-            ))
-            
-            // === FOLLOW-UP QUERIES (Levels 1-3) ===
-            if (followUpEnabled && followUpDepth > 0) {
-              // Build conversation history
-              const conversationHistory: ConversationMessage[] = [
-                { role: 'user', content: query.query_text },
-                { role: 'assistant', content: llmResult.content },
-              ]
-              
-              for (let level = 1; level <= followUpDepth; level++) {
-                // Check if cancelled
-                if (abortController.signal.aborted) {
-                  throw new Error('Scan cancelled by user')
-                }
-                
-                // Get follow-up question (respects language setting)
-                const followUpQuery = getFollowUpQuestion(queryType, level as 1 | 2 | 3, language || 'en')
-                
-                // Update progress message
-                setJobs(prev => prev.map(job => 
-                  job.projectId === nextJob.projectId 
-                    ? { 
-                        ...job, 
-                        progress: { 
-                          current: completed, 
-                          total: totalOperations, 
-                          message: `${model} Follow-up ${level}...` 
-                        } 
-                      }
-                    : job
-                ))
-                
-                // Call LLM with conversation history (includes language for response language)
-                const followUpLlmRes = await fetch('/api/llm/call', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
-                    model, 
-                    query: followUpQuery,
-                    conversationHistory,
-                    language,
-                  }),
-                  signal: abortController.signal,
-                })
-                
-                if (!followUpLlmRes.ok) {
-                  console.warn(`[Scan] Follow-up ${level} LLM call failed for ${model}`)
-                  completed++
-                  setJobs(prev => prev.map(job => 
-                    job.projectId === nextJob.projectId 
-                      ? { ...job, progress: { current: completed, total: totalOperations } }
-                      : job
-                  ))
-                  continue
-                }
-                
-                const followUpLlmResult = await followUpLlmRes.json()
-                
-                // Evaluate follow-up response
-                let followUpMetrics
-                let followUpEvalCost = null
-                
-                const followUpEvalRes = await fetch('/api/scan/evaluate', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    content: followUpLlmResult.content,
-                    brandVariations,
-                    domain,
-                  }),
-                  signal: abortController.signal,
-                })
-                
-                if (followUpEvalRes.ok) {
-                  const followUpEvalResult = await followUpEvalRes.json()
-                  followUpMetrics = followUpEvalResult.metrics
-                  followUpEvalCost = followUpEvalResult.evaluation
-                } else {
-                  // Use zero metrics if evaluation fails
-                  followUpMetrics = {
-                    visibility_score: 0,
-                    sentiment_score: 0,
-                    ranking_position: null,
-                    recommendation_strength: 0,
-                    overall_score: 0,
-                    brand_mentioned: false,
-                    domain_mentioned: false,
-                    summary: 'Evaluation failed',
-                  }
-                }
-                
-                // Save follow-up result
-                const followUpSaveRes = await fetch('/api/scan/save-result', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    scanId,
-                    model,
-                    query: query.query_text, // Original query text for grouping
-                    response: followUpLlmResult.content,
-                    inputTokens: followUpLlmResult.inputTokens,
-                    outputTokens: followUpLlmResult.outputTokens,
-                    metrics: followUpMetrics,
-                    evaluationCost: followUpEvalCost,
-                    followUpLevel: level,
-                    parentResultId,
-                    followUpQueryUsed: followUpQuery,
-                  }),
-                  signal: abortController.signal,
-                })
-                
-                const followUpSaveResult = await followUpSaveRes.json()
-                
-                // Update parent for next level
-                parentResultId = followUpSaveResult.resultId
-                
-                // Add to conversation history for next follow-up
-                conversationHistory.push({ role: 'user', content: followUpQuery })
-                conversationHistory.push({ role: 'assistant', content: followUpLlmResult.content })
-                
-                completed++
-                
-                // Update progress
-                setJobs(prev => prev.map(job => 
-                  job.projectId === nextJob.projectId 
-                    ? { ...job, progress: { current: completed, total: totalOperations } }
-                    : job
-                ))
-                
-                // Small delay between follow-ups
-                await new Promise(resolve => setTimeout(resolve, 200))
-              }
-            }
-            
-          } catch (err: any) {
-            if (err.name === 'AbortError') throw err
-            console.warn(`[Scan] Error processing ${model}:`, err.message)
-          }
-          
-          // Small delay to avoid rate limits
-          await new Promise(resolve => setTimeout(resolve, 300))
-        }
-      }
-      
-      // 3. Complete scan (with reservation ID for credit processing)
-      await fetch(`/api/projects/${nextJob.projectId}/scan/${scanId}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reservationId }),
-        signal: abortController.signal,
-      })
-      
-      // Mark as completed
-      setJobs(prev => prev.map(job => 
-        job.projectId === nextJob.projectId 
-          ? { ...job, status: 'completed' as const, progress: { current: completed, total: totalOperations } }
-          : job
-      ))
-      
-      console.log(`[Scan] Completed scan for ${nextJob.projectName}: ${completed}/${totalOperations}`)
-      
-    } catch (error: any) {
-      if (error.name === 'AbortError' || error.message === 'Scan cancelled by user') {
-        setJobs(prev => prev.map(job => 
-          job.projectId === nextJob.projectId 
-            ? { ...job, status: 'cancelled' as const, error: 'Cancelled by user' }
-            : job
-        ))
-      } else {
-        console.error('[Scan] Error:', error)
-        setJobs(prev => prev.map(job => 
-          job.projectId === nextJob.projectId 
-            ? { ...job, status: 'failed' as const, error: error.message, errorCode: error.code }
-            : job
-        ))
-      }
-    } finally {
-      processingRef.current = false
-      abortControllersRef.current.delete(nextJob.projectId)
-      
-      // Use jobsRef.current instead of stale jobs closure
-      // Process next job after short delay
-      setTimeout(() => {
-        const currentJobs = jobsRef.current
-        const hasMoreJobs = currentJobs.some(j => j.status === 'queued' && j.projectId !== nextJob.projectId)
-        if (hasMoreJobs) {
-          processQueue()
-        } else {
-          setIsProcessing(false)
-        }
-      }, 500)
-    }
-  }, []) // Remove jobs from dependencies since we use jobsRef
-  
-  // Auto-process queue when jobs change
+  // Cleanup polling on unmount
   useEffect(() => {
-    const hasQueuedJobs = jobs.some(job => job.status === 'queued')
-    if (hasQueuedJobs && !processingRef.current) {
-      processQueue()
+    return () => {
+      pollingRef.current.forEach(interval => clearInterval(interval))
+      pollingRef.current.clear()
     }
-  }, [jobs, processQueue])
+  }, [])
+  
+  // Restore active scans on initial load (survives page refresh)
+  useEffect(() => {
+    if (initialized) return
+    
+    const restoreActiveScans = async () => {
+      try {
+        const res = await fetch('/api/scan/active')
+        if (!res.ok) {
+          setInitialized(true)
+          return
+        }
+        
+        const { scans } = await res.json()
+        
+        if (scans && scans.length > 0) {
+          console.log(`[Scan] Restoring ${scans.length} active scan(s)`)
+          
+          const restoredJobs: ScanJob[] = scans.map((scan: any) => ({
+            id: scan.queueId,
+            queueId: scan.queueId,
+            projectId: scan.projectId,
+            projectName: scan.projectName,
+            status: scan.status as ScanJob['status'],
+            scanId: scan.scanId,
+            progress: scan.progress,
+            error: scan.error,
+            startedAt: scan.startedAt ? new Date(scan.startedAt) : undefined,
+          }))
+          
+          setJobs(restoredJobs)
+          
+          // Start polling for each restored job (done after startPolling is defined)
+          // We'll handle this in a separate effect
+        }
+      } catch (error) {
+        console.warn('[Scan] Failed to restore active scans:', error)
+      } finally {
+        setInitialized(true)
+      }
+    }
+    
+    restoreActiveScans()
+  }, [initialized])
+  
+  // Start polling for a scan's status
+  const startPolling = useCallback((projectId: string, queueId: string) => {
+    // Don't start if already polling
+    if (pollingRef.current.has(projectId)) return
+    
+    const pollStatus = async () => {
+      const job = jobsRef.current.find(j => j.projectId === projectId)
+      if (!job || !['queued', 'running'].includes(job.status)) {
+        // Stop polling if job is done or removed
+        const interval = pollingRef.current.get(projectId)
+        if (interval) {
+          clearInterval(interval)
+          pollingRef.current.delete(projectId)
+        }
+        return
+      }
+      
+      try {
+        const res = await fetch(`/api/projects/${projectId}/scan/queue/${queueId}`)
+        if (!res.ok) {
+          console.warn(`[Scan Poll] Failed to get status: ${res.status}`)
+          return
+        }
+        
+        const data = await res.json()
+        
+        setJobs(prev => prev.map(j => {
+          if (j.projectId !== projectId) return j
+          
+          return {
+            ...j,
+            status: data.status as ScanJob['status'],
+            scanId: data.scanId || j.scanId,
+            progress: {
+              current: data.progress.current,
+              total: data.progress.total,
+              message: data.progress.message,
+            },
+            error: data.error,
+            startedAt: data.startedAt ? new Date(data.startedAt) : j.startedAt,
+          }
+        }))
+        
+        // If completed or failed, stop polling
+        if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+          const interval = pollingRef.current.get(projectId)
+          if (interval) {
+            clearInterval(interval)
+            pollingRef.current.delete(projectId)
+          }
+        }
+        
+      } catch (error) {
+        console.warn('[Scan Poll] Error:', error)
+      }
+    }
+    
+    // Initial poll
+    pollStatus()
+    
+    // Set up interval
+    const interval = setInterval(pollStatus, POLL_INTERVAL)
+    pollingRef.current.set(projectId, interval)
+  }, [])
+  
+  // Stop polling for a project
+  const stopPolling = useCallback((projectId: string) => {
+    const interval = pollingRef.current.get(projectId)
+    if (interval) {
+      clearInterval(interval)
+      pollingRef.current.delete(projectId)
+    }
+  }, [])
+  
+  // Start polling for restored jobs after initialization
+  useEffect(() => {
+    if (!initialized) return
+    
+    // Start polling for any active jobs that aren't already being polled
+    jobs.forEach(job => {
+      if (['queued', 'running'].includes(job.status) && job.queueId && !pollingRef.current.has(job.projectId)) {
+        startPolling(job.projectId, job.queueId)
+      }
+    })
+  }, [initialized, jobs, startPolling])
   
   // Actions
   const startScan = useCallback(async (projectId: string, projectName: string) => {
-    // Check if already has active job - use functional update to get current state
-    setJobs(prev => {
-      const existingActiveJob = prev.find(
-        job => job.projectId === projectId && ['queued', 'running'].includes(job.status)
-      )
+    // Check if already has active job
+    const existingActiveJob = jobsRef.current.find(
+      job => job.projectId === projectId && ['queued', 'running'].includes(job.status)
+    )
+    
+    if (existingActiveJob) {
+      console.log(`[Scan] Project ${projectId} already has an active scan`)
+      return
+    }
+    
+    try {
+      // Queue the scan on the server
+      const res = await fetch(`/api/projects/${projectId}/scan/queue`, {
+        method: 'POST',
+      })
       
-      if (existingActiveJob) {
-        console.log(`[Scan] Project ${projectId} already has an active scan`)
-        return prev // Return unchanged
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }))
+        
+        // Special case: scan already queued
+        if (errorData.code === 'SCAN_ALREADY_QUEUED') {
+          console.log(`[Scan] Scan already queued for ${projectId}, starting to poll`)
+          const queueId = errorData.queueId
+          
+          // Add job to track it
+          setJobs(prev => {
+            const filtered = prev.filter(
+              job => job.projectId !== projectId || ['queued', 'running'].includes(job.status)
+            )
+            return [...filtered, {
+              id: queueId,
+              queueId,
+              projectId,
+              projectName,
+              status: 'running' as const,
+              progress: { current: 0, total: 0, message: 'Reconnecting...' },
+            }]
+          })
+          
+          // Start polling
+          startPolling(projectId, queueId)
+          return
+        }
+        
+        // Add failed job to show error
+        setJobs(prev => {
+          const filtered = prev.filter(j => j.projectId !== projectId)
+          return [...filtered, {
+            id: '',
+            queueId: '',
+            projectId,
+            projectName,
+            status: 'failed' as const,
+            progress: { current: 0, total: 0 },
+            error: errorData.error || `Failed to start scan (${res.status})`,
+            errorCode: errorData.code,
+          }]
+        })
+        return
       }
       
-      // Remove any completed/failed/cancelled jobs for this project before adding new one
-      const filteredJobs = prev.filter(
-        job => job.projectId !== projectId || ['queued', 'running'].includes(job.status)
-      )
+      const { queueId, totalOperations, message } = await res.json()
       
-      // Add to queue
-      const newJob: ScanJob = {
-        id: '',
-        projectId,
-        projectName,
-        status: 'queued',
-        progress: { current: 0, total: 0 },
-      }
+      // Remove any completed/failed jobs for this project and add new job
+      setJobs(prev => {
+        const filtered = prev.filter(
+          job => job.projectId !== projectId || ['queued', 'running'].includes(job.status)
+        )
+        
+        const newJob: ScanJob = {
+          id: queueId,
+          queueId,
+          projectId,
+          projectName,
+          status: 'queued',
+          progress: { 
+            current: 0, 
+            total: totalOperations, 
+            message: message || 'Queued for processing...' 
+          },
+        }
+        
+        return [...filtered, newJob]
+      })
       
-      return [...filteredJobs, newJob]
-    })
-  }, [])
+      // Start polling for status updates
+      startPolling(projectId, queueId)
+      
+      console.log(`[Scan] Queued scan for ${projectName}: ${queueId}`)
+      
+    } catch (error: any) {
+      console.error('[Scan] Error starting scan:', error)
+      
+      setJobs(prev => {
+        const filtered = prev.filter(j => j.projectId !== projectId)
+        return [...filtered, {
+          id: '',
+          queueId: '',
+          projectId,
+          projectName,
+          status: 'failed' as const,
+          progress: { current: 0, total: 0 },
+          error: error.message || 'Failed to start scan',
+        }]
+      })
+    }
+  }, [startPolling])
   
   const cancelScan = useCallback(async (projectId: string) => {
-    const controller = abortControllersRef.current.get(projectId)
-    if (controller) {
-      controller.abort()
-    }
-    
-    // Find the job to get scan ID and reservation ID
     const job = jobsRef.current.find(j => j.projectId === projectId)
+    if (!job || !job.queueId) return
     
-    // Update database if scan has started (has an ID)
-    if (job?.id) {
-      try {
-        await fetch(`/api/projects/${projectId}/scan/${job.id}/stop`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reservationId: job.reservationId }),
-        })
-      } catch (err) {
-        console.warn('[Scan] Failed to update scan status in database:', err)
-      }
+    // Stop polling
+    stopPolling(projectId)
+    
+    try {
+      // Cancel on server
+      await fetch(`/api/projects/${projectId}/scan/queue/${job.queueId}`, {
+        method: 'DELETE',
+      })
+    } catch (err) {
+      console.warn('[Scan] Failed to cancel scan on server:', err)
     }
     
-    setJobs(prev => prev.map(job => 
-      job.projectId === projectId && ['queued', 'running'].includes(job.status)
-        ? { ...job, status: 'cancelled' as const, error: 'Stopped by user' }
-        : job
+    // Update local state
+    setJobs(prev => prev.map(j => 
+      j.projectId === projectId && ['queued', 'running'].includes(j.status)
+        ? { ...j, status: 'cancelled' as const, error: 'Cancelled by user' }
+        : j
     ))
-  }, [])
+  }, [stopPolling])
   
   const clearJob = useCallback((projectId: string) => {
+    stopPolling(projectId)
     setJobs(prev => prev.filter(job => job.projectId !== projectId))
-  }, [])
+  }, [stopPolling])
   
   const clearCompleted = useCallback(() => {
+    // Stop all polling for completed jobs
+    jobsRef.current.forEach(job => {
+      if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+        stopPolling(job.projectId)
+      }
+    })
     setJobs(prev => prev.filter(job => !['completed', 'failed', 'cancelled'].includes(job.status)))
-  }, [])
+  }, [stopPolling])
   
   // Helpers
   const getJobForProject = useCallback((projectId: string) => {
