@@ -114,6 +114,21 @@ export default function ProjectPage() {
     }
   }
 
+  // Listen for stuck scans cleanup notification
+  useEffect(() => {
+    const handleStuckScansClean = (event: CustomEvent<{ count: number }>) => {
+      if (event.detail.count > 0) {
+        showInfo(`Cleaned up ${event.detail.count} stuck scan(s). You can start a new scan now.`)
+        loadProject() // Refresh to show updated scan list
+      }
+    }
+    
+    window.addEventListener('stuck-scans-cleaned', handleStuckScansClean as EventListener)
+    return () => {
+      window.removeEventListener('stuck-scans-cleaned', handleStuckScansClean as EventListener)
+    }
+  }, [])
+
   // Reload project when scan completes - only notify once per job
   useEffect(() => {
     if (!currentJob?.id) return

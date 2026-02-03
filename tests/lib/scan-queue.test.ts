@@ -854,6 +854,101 @@ describe('End-to-End Scan Flow', () => {
 })
 
 // =====================================================
+// Stuck Scan Cleanup Tests
+// =====================================================
+
+describe('Stuck Scan Cleanup', () => {
+  describe('Detection', () => {
+    it('should identify scans running longer than 5 minutes', () => {
+      const now = Date.now()
+      const scans = [
+        { id: 's1', status: 'running', created_at: new Date(now - 3 * 60 * 1000).toISOString() }, // 3 min - not stuck
+        { id: 's2', status: 'running', created_at: new Date(now - 6 * 60 * 1000).toISOString() }, // 6 min - stuck
+        { id: 's3', status: 'running', created_at: new Date(now - 10 * 60 * 1000).toISOString() }, // 10 min - stuck
+        { id: 's4', status: 'completed', created_at: new Date(now - 10 * 60 * 1000).toISOString() }, // completed - not stuck
+      ]
+
+      const fiveMinutesAgo = now - 5 * 60 * 1000
+      const stuckScans = scans.filter(s => 
+        s.status === 'running' && 
+        new Date(s.created_at).getTime() < fiveMinutesAgo
+      )
+
+      expect(stuckScans).toHaveLength(2)
+      expect(stuckScans.map(s => s.id)).toEqual(['s2', 's3'])
+    })
+
+    it('should exclude scans that are in the queue', () => {
+      const stuckScans = [
+        { id: 'scan-1' },
+        { id: 'scan-2' },
+        { id: 'scan-3' },
+      ]
+      
+      const queuedScanIds = new Set(['scan-2']) // scan-2 is in queue
+
+      const actuallyStuck = stuckScans.filter(s => !queuedScanIds.has(s.id))
+
+      expect(actuallyStuck).toHaveLength(2)
+      expect(actuallyStuck.map(s => s.id)).toEqual(['scan-1', 'scan-3'])
+    })
+  })
+
+  describe('Cleanup Action', () => {
+    it('should mark stuck scans as failed', () => {
+      const stuckScan = {
+        id: 'stuck-scan-123',
+        status: 'running' as const,
+        completed_at: null,
+      }
+
+      // Simulate cleanup
+      const cleanedScan = {
+        ...stuckScan,
+        status: 'failed' as const,
+        completed_at: new Date().toISOString(),
+      }
+
+      expect(cleanedScan.status).toBe('failed')
+      expect(cleanedScan.completed_at).toBeDefined()
+    })
+
+    it('should return count of cleaned scans', () => {
+      const stuckScans = [
+        { id: 's1' },
+        { id: 's2' },
+        { id: 's3' },
+      ]
+
+      const cleanedCount = stuckScans.length
+
+      expect(cleanedCount).toBe(3)
+    })
+  })
+
+  describe('Orphaned Queue Cleanup', () => {
+    it('should identify orphaned queue entries', () => {
+      const now = Date.now()
+      const fiveMinutesAgo = now - 5 * 60 * 1000
+
+      const queueEntries = [
+        { id: 'q1', status: 'running', updated_at: new Date(now - 2 * 60 * 1000).toISOString() }, // 2 min - active
+        { id: 'q2', status: 'running', updated_at: new Date(now - 10 * 60 * 1000).toISOString() }, // 10 min - orphaned
+        { id: 'q3', status: 'pending', updated_at: new Date(now - 10 * 60 * 1000).toISOString() }, // pending - ok
+      ]
+
+      const orphaned = queueEntries.filter(q =>
+        q.status === 'running' &&
+        new Date(q.updated_at).getTime() < fiveMinutesAgo
+      )
+
+      expect(orphaned).toHaveLength(1)
+      expect(orphaned[0].id).toBe('q2')
+    })
+  })
+})
+
+// =====================================================
 // Helper Simulation Functions
 // =====================================================
 

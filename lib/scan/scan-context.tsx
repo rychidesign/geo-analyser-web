@@ -89,7 +89,17 @@ export function ScanProvider({ children }: ScanProviderProps) {
           return
         }
         
-        const { scans } = await res.json()
+        const data = await res.json()
+        const { scans, stuckScansFixed } = data
+        
+        // Log if stuck scans were auto-cleaned
+        if (stuckScansFixed && stuckScansFixed > 0) {
+          console.log(`[Scan] Auto-cleaned ${stuckScansFixed} stuck scan(s) from old system`)
+          // Dispatch event so UI can show notification
+          window.dispatchEvent(new CustomEvent('stuck-scans-cleaned', { 
+            detail: { count: stuckScansFixed } 
+          }))
+        }
         
         if (scans && scans.length > 0) {
           console.log(`[Scan] Restoring ${scans.length} active scan(s)`)
