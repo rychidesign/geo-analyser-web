@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.2.0] - 2026-02-04
+
 ### Added
 - **Scan Queue System**: Parallel processing of scans with manual start/pause/cancel.
 - **Minute-by-minute Workers**: Automated queue processing via Vercel Cron.
@@ -51,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.2.0 | 2026-02-04 | Scan Queue system, Minute Cron, and Vercel Pro support |
 | 1.1.0 | 2026-02-03 | Added testing framework, MDC docs, and git workflow |
 | 1.0.0 | 2026-02-02 | Initial release |
 
