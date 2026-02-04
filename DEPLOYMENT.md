@@ -9,7 +9,7 @@ Complete guide for deploying GEO Analyser to production on Vercel + Supabase.
 Before you start, make sure you have:
 
 - ✅ GitHub account
-- ✅ Vercel account (free tier works) - [vercel.com](https://vercel.com)
+- ✅ **Vercel Pro account** (Required for scan queue & minute cron) - [vercel.com](https://vercel.com)
 - ✅ Supabase account (free tier works) - [supabase.com](https://supabase.com)
 - ✅ API keys from LLM providers (at least one):
   - OpenAI: [platform.openai.com](https://platform.openai.com)
@@ -339,11 +339,11 @@ As your usage grows:
    - Automatic backups
    - Point-in-time recovery
 
-2. **Upgrade Vercel** (from Hobby to Pro):
-   - More bandwidth
-   - Better performance
+2. **Vercel Pro (Required)**:
+   - **Minute Cron**: Essential for the Scan Queue system (`* * * * *`).
+   - **300s Timeout**: Critical for long-running LLM scans.
+   - More bandwidth (1 TB+)
    - Team collaboration
-   - Analytics
 
 3. **Optimize Costs**:
    - Use cheaper models for query generation (e.g., GPT-5 Nano)

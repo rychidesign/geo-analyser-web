@@ -61,6 +61,7 @@ Quick reference for deploying GEO Analyser to production.
 
 - [ ] Import project from GitHub
 - [ ] Framework preset: Next.js
+- [ ] **Upgrade to Vercel Pro** (if using scan queue / minute cron)
 - [ ] Add environment variables:
   - [ ] `NEXT_PUBLIC_SUPABASE_URL`
   - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`

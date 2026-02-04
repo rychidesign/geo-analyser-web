@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Scan Queue System**: Parallel processing of scans with manual start/pause/cancel.
+- **Minute-by-minute Workers**: Automated queue processing via Vercel Cron.
+- **Database Claim Logic**: Atomic locking for parallel scan workers (Migration 022).
+- **Cleanup API**: Automatic cleanup of abandoned or failed scans.
+
+### Changed
+- **Vercel Pro Requirement**: Application now requires Vercel Pro for minute-by-minute cron jobs and longer timeouts (300s).
+
 ---
 
 ## [1.1.0] - 2026-02-03
