@@ -148,7 +148,7 @@ export default function NewProjectPage() {
         const res = await fetch('/api/credits')
         if (res.ok) {
           const data = await res.json()
-          setUserTier(data.tier || 'free')
+          setUserTier(data.credits?.tier || 'free')
         }
       } catch (error) {
         console.error('Failed to fetch user tier:', error)

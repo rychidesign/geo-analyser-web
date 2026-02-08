@@ -265,7 +265,7 @@ export default function ProjectSettingsPage() {
       const creditsRes = await fetch('/api/credits')
       if (creditsRes.ok) {
         const creditsData = await creditsRes.json()
-        setUserTier(creditsData.tier || 'free')
+        setUserTier(creditsData.credits?.tier || 'free')
       }
     } catch (error) {
       console.error('Error loading project:', error)
