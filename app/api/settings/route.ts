@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserSettings, upsertUserSetting } from '@/lib/db/settings'
+import { encrypt, isEncryptionConfigured } from '@/lib/crypto'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export async function GET() {
   try {
@@ -13,20 +15,18 @@ export async function GET() {
 
     const settings = await getUserSettings(user.id)
     
-    // Mask API keys for security - show only last 4 characters
+    // Never expose any part of the actual API key — just indicate presence
     const maskedSettings = settings.map(s => ({
       ...s,
-      encrypted_api_key: s.encrypted_api_key 
-        ? `****${s.encrypted_api_key.slice(-4)}`
-        : null,
+      encrypted_api_key: null, // Never send encrypted data to client
       has_key: !!s.encrypted_api_key,
     }))
     
     return NextResponse.json(maskedSettings)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching settings:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch settings' }, 
+      { error: safeErrorMessage(error, 'Failed to fetch settings') }, 
       { status: 500 }
     )
   }
@@ -53,27 +53,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid provider' }, { status: 400 })
     }
 
-    // Note: In production, you should encrypt the API key before storing
-    // For now, we'll store it as-is (Supabase RLS protects it)
+    // Encrypt the API key before storing
+    let encryptedKey: string | null = null
+    if (api_key) {
+      if (!isEncryptionConfigured()) {
+        console.error('[Settings] ENCRYPTION_KEY not configured — cannot store API key securely')
+        return NextResponse.json(
+          { error: 'Server encryption is not configured. Contact administrator.' },
+          { status: 500 }
+        )
+      }
+      encryptedKey = encrypt(api_key)
+    }
+
     const setting = await upsertUserSetting({
       user_id: user.id,
       provider,
-      encrypted_api_key: api_key || null,
+      encrypted_api_key: encryptedKey,
       model: model || getDefaultModel(provider),
       is_active: !!api_key,
     })
 
     return NextResponse.json({
       ...setting,
-      encrypted_api_key: setting.encrypted_api_key 
-        ? `****${setting.encrypted_api_key.slice(-4)}`
-        : null,
+      encrypted_api_key: null, // Never send encrypted data to client
       has_key: !!setting.encrypted_api_key,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error saving setting:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to save setting' }, 
+      { error: safeErrorMessage(error, 'Failed to save setting') }, 
       { status: 500 }
     )
   }

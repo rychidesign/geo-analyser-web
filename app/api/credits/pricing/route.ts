@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getPricingConfigs, getUserProfile } from '@/lib/credits'
 import { getModelsForUser } from '@/lib/credits/middleware'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,10 +64,10 @@ export async function GET(request: NextRequest) {
       isLimited,
       isAdmin, // Let frontend know if showing full data
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Pricing API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch pricing' },
+      { error: safeErrorMessage(error, 'Failed to fetch pricing') },
       { status: 500 }
     )
   }

@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin, isAdmin } from '@/lib/credits/middleware'
 import { updateUserTier, addCredits, getUserProfile, usdToCents } from '@/lib/credits'
 import type { UserTier } from '@/lib/credits/types'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -181,10 +182,10 @@ export async function GET(request: NextRequest) {
       users,
       pagination: { limit, offset, total: count || users.length },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Admin Users API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch users' },
+      { error: safeErrorMessage(error, 'Failed to fetch users') },
       { status: 500 }
     )
   }
@@ -266,7 +267,8 @@ export async function PATCH(request: NextRequest) {
           .eq('user_id', userId)
 
         if (error) {
-          return NextResponse.json({ error: error.message }, { status: 500 })
+          console.error('[Admin Users API] Toggle simulation error:', error)
+          return NextResponse.json({ error: 'Failed to update test simulation' }, { status: 500 })
         }
 
         return NextResponse.json({ 
@@ -278,10 +280,10 @@ export async function PATCH(request: NextRequest) {
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Admin Users API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to update user' },
+      { error: safeErrorMessage(error, 'Failed to update user') },
       { status: 500 }
     )
   }

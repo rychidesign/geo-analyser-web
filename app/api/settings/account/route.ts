@@ -25,10 +25,10 @@ export async function GET() {
       avatarUrl: profile?.avatar_url || null,
       createdAt: user.created_at,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Account Settings] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch account' }, 
+      { error: 'Failed to fetch account' }, 
       { status: 500 }
     )
   }
@@ -63,17 +63,18 @@ export async function PATCH(request: Request) {
     const { error } = await supabase.auth.updateUser({ email })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      console.error('[Account Settings] Email update error:', error.message)
+      return NextResponse.json({ error: 'Failed to update email' }, { status: 400 })
     }
 
     return NextResponse.json({ 
       success: true,
       message: 'Confirmation email sent. Please check both your old and new email addresses.'
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Account Settings] Error updating email:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to update email' }, 
+      { error: 'Failed to update email' }, 
       { status: 500 }
     )
   }

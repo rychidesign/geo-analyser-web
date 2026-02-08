@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     // Use Gateway mode (centralized API keys via Vercel AI Gateway)
     if (isGatewayEnabled()) {
       const isFollowUp = conversationHistory && conversationHistory.length > 0
-      console.log(`[LLM Proxy] Calling ${model} for user ${user.id}${isFollowUp ? ' (with conversation history)' : ''}`)
+      console.log(`[LLM Proxy] Calling ${model} for user ${user.id.substring(0, 8)}...${isFollowUp ? ' (with conversation history)' : ''}`)
       
       let response
       
@@ -134,20 +134,21 @@ export async function POST(request: NextRequest) {
     const duration = Date.now() - startTime
     console.error(`[LLM Proxy] Error after ${duration}ms:`, error.message || error)
     
-    // Provide more specific error messages
-    let errorMessage = error.message || 'LLM call failed'
+    // Map internal errors to safe user-facing messages
+    let errorMessage = 'LLM call failed'
     let status = 500
+    const msg = error.message || ''
     
-    if (error.message?.includes('timeout') || error.message?.includes('Timeout') || error.message?.includes('timed out')) {
+    if (msg.includes('timeout') || msg.includes('Timeout') || msg.includes('timed out')) {
       errorMessage = 'Request timed out. The model took too long to respond. Try a faster model like gpt-5-mini or claude-haiku.'
       status = 504
-    } else if (error.message?.includes('model') || error.message?.includes('Model')) {
-      errorMessage = `Invalid model or model not available: ${error.message}`
+    } else if (msg.includes('model') || msg.includes('Model')) {
+      errorMessage = 'Invalid model or model not available'
       status = 400
-    } else if (error.message?.includes('API key') || error.message?.includes('authentication') || error.message?.includes('401')) {
+    } else if (msg.includes('API key') || msg.includes('authentication') || msg.includes('401')) {
       errorMessage = 'Invalid API key or authentication failed'
       status = 401
-    } else if (error.message?.includes('rate') || error.message?.includes('429')) {
+    } else if (msg.includes('rate') || msg.includes('429')) {
       errorMessage = 'Rate limit exceeded. Please try again later.'
       status = 429
     }

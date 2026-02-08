@@ -85,10 +85,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
 
     return NextResponse.json(scan)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error running scan:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to run scan' }, 
+      { error: 'Failed to run scan' }, 
       { status: 500 }
     )
   }

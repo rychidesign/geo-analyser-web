@@ -230,8 +230,8 @@ export async function POST(
                 outputTokens += followUpResponse.outputTokens
                 
                 if (!followUpResponse.content) {
-                  console.log(`[Chunk] Empty follow-up response ${level} from ${modelId}`)
-                  continue
+                  console.log(`[Chunk] Empty follow-up response ${level} from ${modelId}, stopping chain`)
+                  break
                 }
                 
                 // Evaluate follow-up
@@ -245,7 +245,10 @@ export async function POST(
                 inputTokens += followUpEvalResult.inputTokens
                 outputTokens += followUpEvalResult.outputTokens
                 
-                if (!followUpEvalResult.metrics) continue
+                if (!followUpEvalResult.metrics) {
+                  console.log(`[Chunk] Follow-up ${level} evaluation failed for ${modelId}, stopping chain`)
+                  break
+                }
                 
                 // Calculate costs
                 const followUpQueryCostCents = await calculateDynamicCost(modelId, followUpResponse.inputTokens, followUpResponse.outputTokens)
@@ -301,7 +304,7 @@ export async function POST(
               queryId: query.id,
               modelId,
               success: false,
-              error: error.message,
+              error: 'Processing failed',
               costCents,
               inputTokens,
               outputTokens,
@@ -375,11 +378,11 @@ export async function POST(
       totalCostCents,
       totalCostUsd: totalCostCents / 100,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime
     console.error(`[Chunk] Error after ${duration}ms:`, error)
     return NextResponse.json(
-      { error: error.message || 'Failed to process chunk' },
+      { error: 'Failed to process chunk' },
       { status: 500 }
     )
   }

@@ -217,10 +217,10 @@ export async function POST(request: NextRequest) {
     console.log(`[Save Result] Saved result for scan ${scanId}, model ${model}, cost: $${cost.toFixed(6)}${evalCost > 0 ? ` + eval: $${evalCost.toFixed(6)}` : ''}`)
 
     return NextResponse.json({ success: true, resultId: result.id, cost: totalCost })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Save Result] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to save result' },
+      { error: 'Failed to save result' },
       { status: 500 }
     )
   }

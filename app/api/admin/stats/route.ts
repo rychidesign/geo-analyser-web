@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { isAdmin } from '@/lib/credits/middleware'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,10 +134,10 @@ export async function GET(request: NextRequest) {
           : 0,
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Admin Stats API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch stats' },
+      { error: safeErrorMessage(error, 'Failed to fetch stats') },
       { status: 500 }
     )
   }

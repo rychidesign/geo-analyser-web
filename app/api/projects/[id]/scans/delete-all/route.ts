@@ -72,7 +72,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('[Delete All Scans] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to delete scans' },
+      { error: 'Failed to delete scans' },
       { status: 500 }
     )
   }

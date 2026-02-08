@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,10 +44,10 @@ export async function GET(request: NextRequest) {
     })) || []
 
     return NextResponse.json({ pricing: pricingWithFinal })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Admin Pricing API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch pricing' },
+      { error: safeErrorMessage(error, 'Failed to fetch pricing') },
       { status: 500 }
     )
   }
@@ -123,10 +124,10 @@ export async function PATCH(request: NextRequest) {
         final_output_cost_cents: Math.round(data.base_output_cost_cents * (1 + data.markup_percentage / 100)),
       }
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Admin Pricing API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to update pricing' },
+      { error: safeErrorMessage(error, 'Failed to update pricing') },
       { status: 500 }
     )
   }
@@ -189,10 +190,10 @@ export async function POST(request: NextRequest) {
         final_output_cost_cents: Math.round(data.base_output_cost_cents * (1 + data.markup_percentage / 100)),
       }
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Admin Pricing API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to create pricing' },
+      { error: safeErrorMessage(error, 'Failed to create pricing') },
       { status: 500 }
     )
   }

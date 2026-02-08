@@ -65,7 +65,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   } catch (error: any) {
     console.error('[Scan Queue Status] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to get queue status' },
+      { error: 'Failed to get queue status' },
       { status: 500 }
     )
   }
@@ -123,7 +123,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   } catch (error: any) {
     console.error('[Scan Queue Cancel] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to cancel scan' },
+      { error: 'Failed to cancel scan' },
       { status: 500 }
     )
   }

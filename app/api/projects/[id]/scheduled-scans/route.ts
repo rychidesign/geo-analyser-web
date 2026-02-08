@@ -52,10 +52,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({
       history: history || []
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in scheduled scans endpoint:', error)
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

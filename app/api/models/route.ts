@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getModelsForUser } from '@/lib/credits/middleware'
 import { AVAILABLE_MODELS, type ModelInfo } from '@/lib/ai'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export const runtime = 'edge'
 
@@ -52,10 +53,10 @@ export async function GET(request: NextRequest) {
       totalAvailable: modelsWithInfo.length,
       totalAll: allModels.length,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Models API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch models' },
+      { error: safeErrorMessage(error, 'Failed to fetch models') },
       { status: 500 }
     )
   }

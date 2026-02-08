@@ -66,7 +66,7 @@ export async function GET(
   } catch (error: any) {
     console.error('[Scan Status] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to get scan status' },
+      { error: 'Failed to get scan status' },
       { status: 500 }
     )
   }

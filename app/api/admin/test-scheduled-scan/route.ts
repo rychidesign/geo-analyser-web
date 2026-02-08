@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { TABLES } from '@/lib/db/schema'
+import { safeErrorMessage } from '@/lib/api-error'
 
 /**
  * TEST ENDPOINT: Manually trigger a scheduled scan for a specific project
@@ -61,8 +62,9 @@ export async function POST(request: NextRequest) {
 
     // Check service role key is available
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[Test Scheduled Scan] SUPABASE_SERVICE_ROLE_KEY not set')
       return NextResponse.json({ 
-        error: 'Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY not set' 
+        error: 'Server configuration error. Contact administrator.' 
       }, { status: 500 })
     }
 
@@ -83,13 +85,12 @@ export async function POST(request: NextRequest) {
 
     if (historyError) {
       console.error('[Test Scheduled Scan] Failed to create history record:', historyError)
-      return NextResponse.json({ error: 'Failed to create scheduled scan record', details: historyError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create scheduled scan record' }, { status: 500 })
     }
 
     console.log(`[Test Scheduled Scan] Created history record ${historyRecord.id}, triggering worker...`)
 
     // Trigger the process-scan worker
-    // Use NEXT_PUBLIC_APP_URL first (production URL), then VERCEL_URL
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL 
       || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
       || 'http://localhost:3000'
@@ -99,17 +100,14 @@ export async function POST(request: NextRequest) {
     let workerResult: any = null
     let workerError: string | null = null
 
-    // Debug info
-    console.log(`[Test Scheduled Scan] Using baseUrl: ${baseUrl}`)
-    console.log(`[Test Scheduled Scan] CRON_SECRET exists: ${!!cronSecret}`)
-
     if (!cronSecret) {
+      console.error('[Test Scheduled Scan] CRON_SECRET not configured')
       return NextResponse.json({
         success: true,
-        message: 'Scheduled scan record created, but CRON_SECRET not configured',
+        message: 'Scheduled scan record created, but worker could not be triggered',
         historyId: historyRecord.id,
         projectName: project.name,
-        workerError: 'CRON_SECRET environment variable is not set',
+        workerError: 'Server configuration incomplete',
         workerResponse: null
       })
     }
@@ -130,12 +128,11 @@ export async function POST(request: NextRequest) {
       if (contentType?.includes('application/json')) {
         workerResult = await workerResponse.json()
       } else {
-        const text = await workerResponse.text()
-        workerError = `Worker returned non-JSON (status ${workerResponse.status}): ${text.substring(0, 200)}`
-        console.error('[Test Scheduled Scan] Worker error:', workerError)
+        workerError = `Worker returned unexpected response (status ${workerResponse.status})`
+        console.error('[Test Scheduled Scan] Worker returned non-JSON response')
       }
     } catch (workerErr: any) {
-      workerError = `Worker call failed: ${workerErr.message}`
+      workerError = 'Worker call failed'
       console.error('[Test Scheduled Scan] Worker exception:', workerErr)
     }
 
@@ -148,8 +145,11 @@ export async function POST(request: NextRequest) {
       workerError
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Test Scheduled Scan] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(
+      { error: safeErrorMessage(error, 'Internal server error') }, 
+      { status: 500 }
+    )
   }
 }

@@ -79,7 +79,7 @@ export async function POST(
   } catch (error: any) {
     console.error('[Stop Scan] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to stop scan' },
+      { error: 'Failed to stop scan' },
       { status: 500 }
     )
   }

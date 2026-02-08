@@ -97,17 +97,17 @@ export async function POST(request: NextRequest) {
         .in('id', orphanedQueue.map(q => q.id))
     }
 
-    console.log(`[Cleanup] Cleaned up ${actuallyStuckScans.length} stuck scan(s) for user ${user.id}`)
+    console.log(`[Cleanup] Cleaned up ${actuallyStuckScans.length} stuck scan(s) for user ${user.id.substring(0, 8)}...`)
 
     return NextResponse.json({ 
       message: `Cleaned up ${actuallyStuckScans.length} stuck scan(s)`,
       cleaned: actuallyStuckScans.length,
       scanIds: stuckIds
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Cleanup] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to clean up scans' },
+      { error: 'Failed to clean up scans' },
       { status: 500 }
     )
   }

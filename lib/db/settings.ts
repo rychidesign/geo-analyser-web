@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { UserSettings, InsertUserSettings, MonthlyUsage } from './schema'
 import { TABLES } from './schema'
+import { decrypt, looksEncrypted } from '@/lib/crypto'
 
 // ============================================
 // USER SETTINGS (API Keys)
@@ -72,6 +73,26 @@ export interface UserApiKeys {
   perplexity_api_key: string | null
 }
 
+/**
+ * Decrypt a stored API key.
+ * Handles both encrypted keys (new) and plain-text keys (legacy).
+ */
+function decryptApiKey(storedKey: string): string {
+  // If it looks encrypted (valid base64 with correct length), decrypt it
+  if (looksEncrypted(storedKey)) {
+    try {
+      return decrypt(storedKey)
+    } catch (err) {
+      console.error('[Settings] Failed to decrypt API key, treating as plain text:', err)
+      // Fallback: return as-is (legacy unencrypted key)
+      return storedKey
+    }
+  }
+  
+  // Legacy: plain-text key (not yet encrypted)
+  return storedKey
+}
+
 export async function getUserApiKeys(userId: string): Promise<UserApiKeys> {
   const settings = await getUserSettings(userId)
   
@@ -86,7 +107,7 @@ export async function getUserApiKeys(userId: string): Promise<UserApiKeys> {
   for (const setting of settings) {
     const keyField = `${setting.provider}_api_key` as keyof UserApiKeys
     if (keyField in keys && setting.encrypted_api_key) {
-      keys[keyField] = setting.encrypted_api_key
+      keys[keyField] = decryptApiKey(setting.encrypted_api_key)
     }
   }
   

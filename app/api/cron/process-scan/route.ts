@@ -81,7 +81,7 @@ async function handleProcessScan(request: NextRequest) {
 
   } catch (error: any) {
     console.error(`[Worker ${workerId}] Fatal error:`, error)
-    return NextResponse.json({ error: error.message, worker: workerId }, { status: 500 })
+    return NextResponse.json({ error: 'Internal processing error', worker: workerId }, { status: 500 })
   }
 }
 
@@ -409,7 +409,7 @@ async function processScan(
   } catch (error: any) {
     return {
       success: false,
-      error: error.message,
+      error: 'Scan processing failed',
       totalCostUsd,
       actualCostCents: totalCostCents,
       totalInputTokens,

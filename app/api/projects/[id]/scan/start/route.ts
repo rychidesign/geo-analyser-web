@@ -169,10 +169,10 @@ export async function POST(
       followUpEnabled,
       followUpDepth,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Scan Start] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to start scan' },
+      { error: 'Failed to start scan' },
       { status: 500 }
     )
   }

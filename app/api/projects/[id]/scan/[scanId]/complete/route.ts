@@ -274,7 +274,7 @@ export async function POST(
   } catch (error: any) {
     console.error('[Complete Scan] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to complete scan' },
+      { error: 'Failed to complete scan' },
       { status: 500 }
     )
   }

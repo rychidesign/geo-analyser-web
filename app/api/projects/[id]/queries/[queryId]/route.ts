@@ -27,7 +27,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   } catch (error: any) {
     console.error('Error deleting query:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to delete query' }, 
+      { error: 'Failed to delete query' }, 
       { status: 500 }
     )
   }

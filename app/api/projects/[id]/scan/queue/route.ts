@@ -160,7 +160,7 @@ export async function POST(
   } catch (error: any) {
     console.error('[Scan Queue] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to queue scan' },
+      { error: 'Failed to queue scan' },
       { status: 500 }
     )
   }

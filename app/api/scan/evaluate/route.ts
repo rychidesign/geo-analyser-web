@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     
     if (!result) {
       return NextResponse.json({ 
-        error: lastError || 'Evaluation failed after retries'
+        error: 'Evaluation failed after retries'
       }, { status: 500 })
     }
 
@@ -157,10 +157,10 @@ export async function POST(request: NextRequest) {
       },
       duration,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[AI Evaluate] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'AI evaluation failed' },
+      { error: 'AI evaluation failed' },
       { status: 500 }
     )
   }

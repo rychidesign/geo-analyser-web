@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createProject, getProjects } from '@/lib/db/projects'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export async function GET() {
   try {
@@ -13,10 +14,10 @@ export async function GET() {
 
     const projects = await getProjects()
     return NextResponse.json(projects)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching projects:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch projects' }, 
+      { error: safeErrorMessage(error, 'Failed to fetch projects') }, 
       { status: 500 }
     )
   }
@@ -95,10 +96,10 @@ export async function POST(request: NextRequest) {
     
     console.log('[Create Project] Project created successfully:', project.id)
     return NextResponse.json(project)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Create Project] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to create project' }, 
+      { error: safeErrorMessage(error, 'Failed to create project') }, 
       { status: 500 }
     )
   }

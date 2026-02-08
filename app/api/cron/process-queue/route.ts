@@ -159,7 +159,7 @@ async function handleProcessQueue(request: NextRequest) {
 
   } catch (error: any) {
     console.error(`[Worker ${workerId}] Fatal error:`, error)
-    return NextResponse.json({ error: error.message, worker: workerId }, { status: 500 })
+    return NextResponse.json({ error: 'Internal processing error', worker: workerId }, { status: 500 })
   }
 }
 
@@ -502,8 +502,8 @@ async function processScan(
               completedOperations++
               
               if (!followUpResponse.content) {
-                console.log(`[Worker ${workerId}] Empty follow-up response ${level} from ${modelId}`)
-                continue
+                console.log(`[Worker ${workerId}] Empty follow-up response ${level} from ${modelId}, stopping chain`)
+                break
               }
               
               // Evaluate follow-up
@@ -514,7 +514,10 @@ async function processScan(
                 project.domain
               )
               
-              if (!followUpEvalResult.metrics) continue
+              if (!followUpEvalResult.metrics) {
+                console.log(`[Worker ${workerId}] Follow-up ${level} evaluation failed for ${modelId}, stopping chain`)
+                break
+              }
               
               // Calculate costs
               const followUpQueryCostCents = await calculateDynamicCost(modelId, followUpResponse.inputTokens, followUpResponse.outputTokens)
@@ -608,7 +611,7 @@ async function processScan(
   } catch (error: any) {
     return {
       success: false,
-      error: error.message,
+      error: 'Scan processing failed',
       totalCostUsd,
       actualCostCents: totalCostCents,
       totalInputTokens,

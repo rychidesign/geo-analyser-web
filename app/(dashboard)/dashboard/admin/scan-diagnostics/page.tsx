@@ -330,11 +330,37 @@ export default function ScanDiagnosticsPage() {
                       Running for {scan.elapsedMinutes} minutes
                     </p>
                   </div>
-                  <Button size="sm" variant="destructive">
-                    Mark as Failed
-                  </Button>
                 </div>
               ))}
+              <Button
+                size="sm"
+                variant="destructive"
+                className="mt-2 w-full"
+                disabled={loading}
+                onClick={async () => {
+                  if (!confirm(`Mark all ${diagnostics.stuckScans.count} stuck scan(s) as failed?`)) return
+                  try {
+                    setLoading(true)
+                    const res = await fetch('/api/scan/cleanup', { method: 'POST' })
+                    const data = await res.json()
+                    if (res.ok) {
+                      alert(`Cleaned up ${data.cleaned} stuck scan(s)`)
+                      await loadDiagnostics()
+                    } else {
+                      alert(`Failed: ${data.error || res.status}`)
+                    }
+                  } catch (err: any) {
+                    alert(`Error: ${err.message}`)
+                  } finally {
+                    setLoading(false)
+                  }
+                }}
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Mark All as Failed
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -85,7 +85,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('[Avatar Upload] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to upload avatar' }, 
+      { error: 'Failed to upload avatar' }, 
       { status: 500 }
     )
   }
@@ -119,7 +119,7 @@ export async function DELETE() {
   } catch (error: any) {
     console.error('[Avatar Delete] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to delete avatar' }, 
+      { error: 'Failed to delete avatar' }, 
       { status: 500 }
     )
   }

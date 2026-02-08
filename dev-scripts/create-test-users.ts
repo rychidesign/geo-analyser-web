@@ -1,11 +1,19 @@
 /**
- * Script to create test users without email verification
- * Run with: npx tsx scripts/create-test-users.ts
+ * DEV-ONLY SCRIPT: Create test users without email verification.
+ * 
+ * Run with: npx tsx dev-scripts/create-test-users.ts
+ * 
+ * Safety: Refuses to run in production.
  */
 
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+
+if (process.env.NODE_ENV === 'production') {
+  console.error('This script is for development only.')
+  process.exit(1)
+}
 
 // Parse .env.local manually
 function loadEnv() {

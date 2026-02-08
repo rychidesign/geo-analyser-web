@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserCreditInfo, checkAndResetFreeTierLimits } from '@/lib/credits'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     // Get credit info
     const credits = await getUserCreditInfo(user.id)
-    console.log('[Credits API] Credits for user', user.id, ':', credits)
+    console.log('[Credits API] Credits fetched for user', user.id.substring(0, 8) + '...')
 
     if (!credits) {
       console.error('[Credits API] getUserCreditInfo returned null for user:', user.id)
@@ -46,10 +47,10 @@ export async function GET(request: NextRequest) {
       credits,
       avatarUrl
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Credits API] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch credits' },
+      { error: safeErrorMessage(error, 'Failed to fetch credits') },
       { status: 500 }
     )
   }

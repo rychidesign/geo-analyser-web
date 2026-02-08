@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getProjectById } from '@/lib/db/projects'
 import { TABLES } from '@/lib/db/schema'
+import { safeErrorMessage } from '@/lib/api-error'
 
 interface RouteParams {
   params: Promise<{ id: string; scanId: string }>
@@ -53,10 +54,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         target_keywords: project.target_keywords || [],
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching scan:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch scan' }, 
+      { error: safeErrorMessage(error, 'Failed to fetch scan') }, 
       { status: 500 }
     )
   }
@@ -120,10 +121,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error deleting scan:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to delete scan' }, 
+      { error: safeErrorMessage(error, 'Failed to delete scan') }, 
       { status: 500 }
     )
   }

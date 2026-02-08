@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getProjectById, updateProject, deleteProject } from '@/lib/db/projects'
 import { calculateNextScheduledScan } from '@/lib/scan/scheduling'
 import { TABLES } from '@/lib/db/schema'
+import { safeErrorMessage } from '@/lib/api-error'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -38,10 +39,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       ...project,
       generation_cost_usd: generationCostCents / 100,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching project:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch project' }, 
+      { error: safeErrorMessage(error, 'Failed to fetch project') }, 
       { status: 500 }
     )
   }
@@ -171,10 +172,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         })
 
         updates.next_scheduled_scan_at = nextScan
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to calculate next scheduled scan:', error)
         return NextResponse.json(
-          { error: `Failed to calculate schedule: ${error.message}` },
+          { error: 'Failed to calculate schedule' },
           { status: 400 }
         )
       }
@@ -187,10 +188,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const project = await updateProject(id, updates)
     return NextResponse.json(project)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating project:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to update project' }, 
+      { error: safeErrorMessage(error, 'Failed to update project') }, 
       { status: 500 }
     )
   }
@@ -214,10 +215,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     await deleteProject(id)
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error deleting project:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to delete project' }, 
+      { error: safeErrorMessage(error, 'Failed to delete project') }, 
       { status: 500 }
     )
   }

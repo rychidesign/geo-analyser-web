@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { TABLES } from '@/lib/db/schema'
+import { safeErrorMessage } from '@/lib/api-error'
 
 export const runtime = 'edge'
 export const maxDuration = 25
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     const diagnostics: any = {
       timestamp: new Date().toISOString(),
-      userId: user.id,
+      userId: user.id.substring(0, 8) + '...',
     }
 
     // 1. Check active scans in scans table
@@ -154,10 +155,10 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(diagnostics, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Scan Diagnostics] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to get diagnostics' },
+      { error: safeErrorMessage(error, 'Failed to get diagnostics') },
       { status: 500 }
     )
   }

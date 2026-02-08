@@ -156,6 +156,12 @@ async function advanceNextScan(
  * Spawn `count` process-scan workers via fire-and-forget HTTP calls.
  */
 function spawnWorkers(count: number): void {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) {
+    console.error('[Scheduled Scans] Cannot spawn workers: CRON_SECRET not configured')
+    return
+  }
+
   const baseUrl = process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
     : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -167,7 +173,7 @@ function spawnWorkers(count: number): void {
       fetch(`${baseUrl}/api/cron/process-scan?worker=${i}`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${process.env.CRON_SECRET || 'dev'}`,
+          Authorization: `Bearer ${cronSecret}`,
           'Content-Type': 'application/json',
         },
       }).catch((err) => {
@@ -323,8 +329,7 @@ export async function GET(request: NextRequest) {
       duration: Date.now() - startTime,
     })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
     console.error('[Scheduled Scans] Fatal error:', error)
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

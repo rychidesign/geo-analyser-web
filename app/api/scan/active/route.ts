@@ -115,10 +115,10 @@ export async function GET(request: NextRequest) {
       scans: result,
       stuckScansFixed: actuallyStuckScans.length // Inform client how many stuck scans were fixed
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Active Scans] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to get active scans' },
+      { error: 'Failed to get active scans' },
       { status: 500 }
     )
   }

@@ -49,17 +49,18 @@ export async function POST(request: Request) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      console.error('[Password Settings] Supabase error:', error.message)
+      return NextResponse.json({ error: 'Failed to update password' }, { status: 400 })
     }
 
     return NextResponse.json({ 
       success: true,
       message: 'Password updated successfully'
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Password Settings] Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to update password' }, 
+      { error: 'Failed to update password' }, 
       { status: 500 }
     )
   }

@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   } catch (error: any) {
     console.error('Error fetching queries:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch queries' }, 
+      { error: 'Failed to fetch queries' }, 
       { status: 500 }
     )
   }
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   } catch (error: any) {
     console.error('Error creating query:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to create query' }, 
+      { error: 'Failed to create query' }, 
       { status: 500 }
     )
   }
