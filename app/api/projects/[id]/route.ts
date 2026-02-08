@@ -143,7 +143,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       updates.scheduled_scan_day !== undefined ||
       updates.scheduled_scan_day_of_month !== undefined
 
-    if (schedulingChanged && (body.scheduled_scan_enabled !== false && existing.scheduled_scan_enabled !== false)) {
+    if (schedulingChanged && body.scheduled_scan_enabled !== false) {
       // Get user's timezone from the _profile settings row (config JSONB)
       const { data: profileSetting } = await supabase
         .from(TABLES.USER_SETTINGS)
