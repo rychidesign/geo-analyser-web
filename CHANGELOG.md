@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.2] - 2026-02-09
+
+### Added
+- **Finalized Scan Architecture Migration**: Successfully migrated all scan logic to the new worker-based system.
+- **Bug Fix Support for Follow-up Queries**: Added documentation and fixes for conversational resilience in automated scans.
+- **Improved Database Schema**: Minor updates to the core schema for better data integrity.
+
+### Removed
+- **Legacy Scan Engine**: Removed deprecated scan engine and old API endpoints.
+
+---
+
 ## [1.3.1] - 2026-02-08
 
 ### Added
@@ -79,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.3.2 | 2026-02-09 | Finalized scan architecture migration and follow-up support |
 | 1.3.1 | 2026-02-08 | Enhanced query management and improved scan chunking |
 | 1.3.0 | 2026-02-08 | Enhanced scan architecture, diagnostics, and unified error handling |
 | 1.2.0 | 2026-02-04 | Scan Queue system, Minute Cron, and Vercel Pro support |
