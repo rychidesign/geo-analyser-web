@@ -101,7 +101,8 @@ CREATE TABLE scan_results (
   ai_response_raw TEXT NOT NULL,
   
   -- Evaluation metrics (JSON)
-  metrics_json JSONB, -- {is_visible, sentiment_score, citation_found, ranking_position, recommendation_strength}
+  -- Structure: {visibility_score: 0-100, sentiment_score: 0-100|null, ranking_score: 0-100, recommendation_score: 0-100}
+  metrics_json JSONB
   
   -- Token tracking for cost calculation
   input_tokens INTEGER,

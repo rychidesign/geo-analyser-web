@@ -5,6 +5,7 @@ import { getPricingConfigs, estimateScanCost, createReservation, consumeReservat
 import { AVAILABLE_MODELS } from '@/lib/ai/providers'
 import { callGEOQuery, callEvaluation, getCheapestEvaluationModel, getModelInfo } from '@/lib/ai'
 import { calculateDynamicCost } from '@/lib/credits'
+import { getFollowUpQuestion, type QueryType } from '@/lib/scan/follow-up-templates'
 
 /**
  * PROCESS SCAN WORKER
@@ -310,14 +311,19 @@ async function processScan(
   
   const allScores = { visibility: [] as number[], sentiment: [] as number[], ranking: [] as number[] }
   const evaluationModel = getCheapestEvaluationModel()
-  const totalOperations = queries.length * models.length
+  
+  // Calculate total operations including follow-ups
+  const followUpEnabled = project.follow_up_enabled === true
+  const followUpDepth = project.follow_up_depth || 1
+  const operationsPerQuery = followUpEnabled ? (1 + followUpDepth) : 1
+  const totalOperations = queries.length * models.length * operationsPerQuery
   let completedOperations = 0
 
   try {
     for (const modelId of models) {
       for (const query of queries) {
         try {
-          const response = await callGEOQuery(modelId, query.query_text)
+          const response = await callGEOQuery(modelId, query.query_text, project.language || 'en')
           completedOperations++
           
           if (!response.content) {
@@ -348,7 +354,7 @@ async function processScan(
           totalInputTokens += response.inputTokens + evalResult.inputTokens
           totalOutputTokens += response.outputTokens + evalResult.outputTokens
 
-          await supabase
+          const { data: initialResult } = await supabase
             .from(TABLES.SCAN_RESULTS)
             .insert({
               scan_id: scanId,
@@ -360,7 +366,12 @@ async function processScan(
               input_tokens: response.inputTokens + evalResult.inputTokens,
               output_tokens: response.outputTokens + evalResult.outputTokens,
               cost_usd: (queryCostCents + evalCostCents) / 100,
+              follow_up_level: 0,
+              parent_result_id: null,
+              follow_up_query_used: null,
             })
+            .select()
+            .single()
 
           totalResults++
 
@@ -372,8 +383,114 @@ async function processScan(
             allScores.ranking.push(evalResult.metrics.ranking_score)
           }
 
+          // ========================================
+          // FOLLOW-UP QUERIES (if enabled)
+          // ========================================
+          if (followUpEnabled && followUpDepth > 0 && initialResult) {
+            // Build conversation history
+            const conversationHistory: Array<{ role: 'user' | 'assistant', content: string }> = [
+              { role: 'user', content: query.query_text },
+              { role: 'assistant', content: response.content },
+            ]
+            
+            let parentResultId = initialResult.id
+            
+            for (let level = 1; level <= followUpDepth; level++) {
+              // Get follow-up question
+              const followUpQuestion = getFollowUpQuestion(
+                query.query_type as QueryType,
+                level as 1 | 2 | 3,
+                project.language || 'en'
+              )
+              
+              console.log(`[Worker ${workerId}] Follow-up ${level}/${followUpDepth} for ${modelId}`)
+              
+              // Call LLM with conversation history
+              const followUpResponse = await callGEOQuery(
+                modelId,
+                followUpQuestion,
+                project.language || 'en',
+                conversationHistory
+              )
+              
+              completedOperations++
+              
+              if (!followUpResponse.content) {
+                console.log(`[Worker ${workerId}] Empty follow-up response ${level} from ${modelId}, stopping chain`)
+                break
+              }
+              
+              // Evaluate follow-up
+              const followUpEvalResult = await callEvaluation(
+                evaluationModel,
+                followUpResponse.content,
+                project.brand_variations || [],
+                project.domain
+              )
+              
+              if (!followUpEvalResult.metrics) {
+                console.log(`[Worker ${workerId}] Follow-up ${level} evaluation failed for ${modelId}, stopping chain`)
+                break
+              }
+              
+              // Calculate costs
+              const followUpQueryCostCents = await calculateDynamicCost(modelId, followUpResponse.inputTokens, followUpResponse.outputTokens)
+              const followUpEvalCostCents = await calculateDynamicCost(evaluationModel, followUpEvalResult.inputTokens, followUpEvalResult.outputTokens)
+              
+              totalCostUsd += (followUpQueryCostCents + followUpEvalCostCents) / 100
+              totalCostCents += followUpQueryCostCents + followUpEvalCostCents
+              totalInputTokens += followUpResponse.inputTokens + followUpEvalResult.inputTokens
+              totalOutputTokens += followUpResponse.outputTokens + followUpEvalResult.outputTokens
+              
+              // Save follow-up result
+              const { data: followUpResult } = await supabase
+                .from(TABLES.SCAN_RESULTS)
+                .insert({
+                  scan_id: scanId,
+                  provider: modelInfo.provider,
+                  model: modelId,
+                  query_text: query.query_text, // Original query for grouping
+                  ai_response_raw: followUpResponse.content,
+                  metrics_json: followUpEvalResult.metrics,
+                  input_tokens: followUpResponse.inputTokens + followUpEvalResult.inputTokens,
+                  output_tokens: followUpResponse.outputTokens + followUpEvalResult.outputTokens,
+                  cost_usd: (followUpQueryCostCents + followUpEvalCostCents) / 100,
+                  follow_up_level: level,
+                  parent_result_id: parentResultId,
+                  follow_up_query_used: followUpQuestion,
+                })
+                .select()
+                .single()
+              
+              if (followUpResult) {
+                totalResults++
+                parentResultId = followUpResult.id
+                
+                // Add follow-up scores to aggregation
+                if (followUpEvalResult.metrics) {
+                  allScores.visibility.push(followUpEvalResult.metrics.visibility_score)
+                  if (followUpEvalResult.metrics.sentiment_score !== null) {
+                    allScores.sentiment.push(followUpEvalResult.metrics.sentiment_score)
+                  }
+                  allScores.ranking.push(followUpEvalResult.metrics.ranking_score)
+                }
+              }
+              
+              // Add to conversation history
+              conversationHistory.push(
+                { role: 'user', content: followUpQuestion },
+                { role: 'assistant', content: followUpResponse.content }
+              )
+            }
+          }
+
         } catch (err: any) {
           console.error(`[Worker ${workerId}] Error ${modelId}:`, err.message)
+          // Skip remaining follow-ups for this query-model pair if error occurs.
+          // Each query-model pair accounts for `operationsPerQuery` operations.
+          // Calculate how many ops remain in the current pair and advance past them.
+          const completedInPair = ((completedOperations - 1) % operationsPerQuery) + 1
+          completedOperations += operationsPerQuery - completedInPair
         }
       }
       

@@ -54,11 +54,12 @@ const result = await callAI({
 
 ## When to Use lib/llm
 
-**Only in legacy code** that requires user-stored API keys:
-- `app/api/projects/[id]/scan/route.ts` (old scan endpoint)
-- `lib/scan/engine.ts` (old scan engine)
+**Legacy code using user-stored API keys has been removed.**
 
-**For new code:** Always use `lib/ai` instead.
+All scan functionality now uses:
+- `lib/ai` - Unified AI module with Vercel AI Gateway
+- Chunked scan API (`/api/projects/[id]/scan/chunk`)
+- Resilience scoring with persistence metrics
 
 ## Removal Plan
 

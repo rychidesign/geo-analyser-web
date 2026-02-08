@@ -43,9 +43,9 @@ Všechny soubory nyní importují z `@/lib/ai`:
 - ✅ `app/(dashboard)/dashboard/projects/[id]/queries/page.tsx`
 - ✅ `app/(dashboard)/dashboard/projects/[id]/settings/page.tsx`
 - ✅ `app/(dashboard)/dashboard/projects/new/page.tsx`
-- ✅ `app/api/projects/[id]/scan/route.ts`
+- ❌ `app/api/projects/[id]/scan/route.ts` (REMOVED - deprecated)
 - ✅ `app/api/scan/save-result/route.ts`
-- ✅ `lib/scan/engine.ts` (typy z lib/ai, callLLM z lib/llm)
+- ❌ `lib/scan/engine.ts` (REMOVED - replaced by chunked scan API)
 - ✅ `tests/lib/llm-types.test.ts`
 - ✅ `scripts/test-scans.ts`
 

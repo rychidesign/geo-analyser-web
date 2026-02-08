@@ -1,22 +1,21 @@
 # Worker Follow-up Queries - TODO
 
-## ❌ Problém
+## ✅ VYŘEŠENO
 
-Queue worker (`/api/cron/process-queue/route.ts`) **NEPODPORUJE follow-up queries**.
+**Status:** Follow-up queries jsou nyní plně implementovány ve všech scan systémech.
 
-- Starý systém (`lib/scan/engine.ts`) podporuje follow-ups ✅
-- Nový queue worker je nepodporuje ❌
-
-### Důsledky:
-- Follow-up queries v projektu jsou nastavené, ale neběží
-- Progress calculation je špatný (nepočítá follow-ups)
-- Výsledky scanů jsou neúplné
+### Implementace:
+- ✅ Chunked scan API (`/api/projects/[id]/scan/chunk`) - podporuje follow-ups
+- ✅ Process-queue cron (`/api/cron/process-queue`) - podporuje follow-ups  
+- ✅ Process-scan cron (`/api/cron/process-scan`) - podporuje follow-ups
+- ✅ Resilience scoring s persistence metrikou
+- ❌ Starý engine (`lib/scan/engine.ts`) - **ODSTRANĚN** (deprecated)
 
 ---
 
-## 🔧 Řešení
+## 📚 Archivní poznámky (pro referenci)
 
-### Varianta A: Upgradovat Worker (DOPORUČENO)
+### Původní varianta A: Upgradovat Worker
 
 Upravit `processScan()` funkci v `/api/cron/process-queue/route.ts`:
 
@@ -66,17 +65,9 @@ if (followUpEnabled && followUpDepth > 0) {
 import { getFollowUpQuestion } from '@/lib/scan/follow-up-templates'
 ```
 
-### Varianta B: Použít Starý Systém
+### Původní varianta B: Použít Starý Systém (DEPRECATED)
 
-Nahradit `processScan()` voláním `runScan()` z `lib/scan/engine.ts`:
-
-**Výhody:**
-- Okamžitě funguje
-- Podporuje všechny featury (follow-ups, weighted scoring)
-
-**Nevýhody:**
-- Starý systém může mít jiné chování
-- Možné konflikty s queue systémem
+**Status:** Tato varianta je již neaktuální. Starý engine byl odstraněn.
 
 ---
 
@@ -232,4 +223,4 @@ Po implementaci otestovat:
 - Follow-up queries VÝRAZNĚ prodlužují scan (3x-4x delší)
 - Zvýší se náklady na scan (více API calls)
 - Progress bar bude přesnější s follow-ups
-- Weighted scoring funguje pouze s follow-ups (viz `lib/scan/engine.ts`)
+- Resilience scoring funguje s follow-ups (viz `lib/scan/follow-up-templates.ts`)
