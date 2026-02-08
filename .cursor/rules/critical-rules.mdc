@@ -89,9 +89,10 @@ You can communicate with the user in Czech, but code stays in English.
 
 ## ⏱️ Vercel Limits
 
-- **API Timeout**: 22 seconds (Hobby plan limit is 25s)
+- **API Timeout**: 22 seconds (Hobby) / **300 seconds (Pro)**
 - **Edge Functions**: More restrictive
-- All LLM calls have `API_TIMEOUT_MS = 22000`
+- **Plan Requirement**: **Vercel Pro** is required for minute-by-minute cron jobs (scan queue).
+- All LLM calls should respect `maxDuration = 300` in route config if on Pro.
 
 ---
 

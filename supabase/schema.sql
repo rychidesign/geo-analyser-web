@@ -36,8 +36,12 @@ CREATE TABLE projects (
   
   -- Scheduled scans
   scheduled_scan_enabled BOOLEAN NOT NULL DEFAULT false,
-  scheduled_scan_day INTEGER, -- 0-6 (Sunday-Saturday)
+  scheduled_scan_frequency TEXT NOT NULL DEFAULT 'weekly' CHECK (scheduled_scan_frequency IN ('daily', 'weekly', 'monthly')),
+  scheduled_scan_hour INTEGER NOT NULL DEFAULT 6 CHECK (scheduled_scan_hour >= 0 AND scheduled_scan_hour <= 23),
+  scheduled_scan_day INTEGER CHECK (scheduled_scan_day >= 0 AND scheduled_scan_day <= 6), -- 0-6 (Sunday-Saturday) for weekly
+  scheduled_scan_day_of_month INTEGER CHECK (scheduled_scan_day_of_month IS NULL OR (scheduled_scan_day_of_month >= 1 AND scheduled_scan_day_of_month <= 28)), -- 1-28 for monthly
   last_scheduled_scan_at TIMESTAMPTZ,
+  next_scheduled_scan_at TIMESTAMPTZ,
   
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

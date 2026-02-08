@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { callGEOQuery, callEvaluation, getModelInfo, getCheapestEvaluationModel, type EvaluationMetrics } from '@/lib/ai'
 import { calculateDynamicCost } from '@/lib/credits'
 import { TABLES, type ScanMetrics } from '@/lib/db/schema'
+import { getFollowUpQuestion, type QueryType } from '@/lib/scan/follow-up-templates'
 
 export const runtime = 'edge'
 export const maxDuration = 25 // Edge runtime allows up to 30s on Hobby plan
@@ -72,11 +73,16 @@ export async function POST(
       }, { status: 400 })
     }
 
+    // Get follow-up settings from project
+    const followUpEnabled = project.follow_up_enabled === true
+    const followUpDepth = project.follow_up_depth || 1
+    
     // Process each query × model combination
     const results = []
     let totalCostCents = 0
     let totalInputTokens = 0
     let totalOutputTokens = 0
+    let totalOperations = 0
 
     // Process all query-model combinations in parallel
     const tasks = []
@@ -88,19 +94,54 @@ export async function POST(
           continue
         }
 
-        // Create a promise for this query-model combination
+        // Create a promise for this query-model combination (including follow-ups)
         tasks.push((async () => {
+          let operationCount = 0
+          let costCents = 0
+          let inputTokens = 0
+          let outputTokens = 0
+          
           try {
-            // Call LLM for query using new AI module
-            const response = await callGEOQuery(modelId, query.query_text)
+            // ========================================
+            // INITIAL RESPONSE (follow_up_level = 0)
+            // ========================================
+            const response = await callGEOQuery(modelId, query.query_text, project.language || 'en')
+            operationCount++
+
+            if (!response.content) {
+              console.log(`[Chunk] Empty response from ${modelId}`)
+              return {
+                queryId: query.id,
+                modelId,
+                success: false,
+                error: 'Empty response',
+                costCents: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                operationCount: 0,
+              }
+            }
 
             // Analyze response with AI evaluation
             const evalResult = await callEvaluation(
               evaluationModel,
               response.content,
-              project.brand_variations,
+              project.brand_variations || [],
               project.domain
             )
+
+            if (!evalResult.metrics) {
+              return {
+                queryId: query.id,
+                modelId,
+                success: false,
+                error: 'No metrics',
+                costCents: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                operationCount: 0,
+              }
+            }
 
             // Calculate costs with dynamic pricing (includes markup)
             const queryCostCents = await calculateDynamicCost(
@@ -115,10 +156,12 @@ export async function POST(
               evalResult.outputTokens
             )
             
-            const totalCost = queryCostCents + evalCostCents
+            costCents += queryCostCents + evalCostCents
+            inputTokens += response.inputTokens + evalResult.inputTokens
+            outputTokens += response.outputTokens + evalResult.outputTokens
 
             // Validate metrics
-            const metrics: ScanMetrics = evalResult.metrics ? {
+            const metrics: ScanMetrics = {
               visibility_score: evalResult.metrics.visibility_score,
               sentiment_score: evalResult.metrics.visibility_score > 0 
                 ? evalResult.metrics.sentiment_score 
@@ -127,15 +170,10 @@ export async function POST(
               recommendation_score: evalResult.metrics.visibility_score > 0 
                 ? evalResult.metrics.recommendation_score 
                 : 0,
-            } : {
-              visibility_score: 0,
-              sentiment_score: null,
-              ranking_score: 0,
-              recommendation_score: 0,
             }
 
-            // Save result
-            const { data: result } = await supabase
+            // Save initial result
+            const { data: initialResult } = await supabase
               .from(TABLES.SCAN_RESULTS)
               .insert({
                 scan_id: scanId,
@@ -144,22 +182,110 @@ export async function POST(
                 query_text: query.query_text,
                 ai_response_raw: response.content,
                 metrics_json: metrics,
-                input_tokens: response.inputTokens,
-                output_tokens: response.outputTokens,
-                cost_usd: totalCost / 100, // Store as USD for backward compatibility
+                input_tokens: response.inputTokens + evalResult.inputTokens,
+                output_tokens: response.outputTokens + evalResult.outputTokens,
+                cost_usd: (queryCostCents + evalCostCents) / 100,
+                follow_up_level: 0,
+                parent_result_id: null,
+                follow_up_query_used: null,
               })
               .select()
               .single()
+
+            // ========================================
+            // FOLLOW-UP QUERIES (if enabled)
+            // ========================================
+            if (followUpEnabled && followUpDepth > 0 && initialResult) {
+              // Build conversation history
+              const conversationHistory: Array<{ role: 'user' | 'assistant', content: string }> = [
+                { role: 'user', content: query.query_text },
+                { role: 'assistant', content: response.content },
+              ]
+              
+              let parentResultId = initialResult.id
+              
+              for (let level = 1; level <= followUpDepth; level++) {
+                // Get follow-up question
+                const followUpQuestion = getFollowUpQuestion(
+                  query.query_type as QueryType,
+                  level as 1 | 2 | 3,
+                  project.language || 'en'
+                )
+                
+                // Call LLM with conversation history
+                const followUpResponse = await callGEOQuery(
+                  modelId,
+                  followUpQuestion,
+                  project.language || 'en',
+                  conversationHistory
+                )
+                
+                operationCount++
+                
+                if (!followUpResponse.content) {
+                  console.log(`[Chunk] Empty follow-up response ${level} from ${modelId}`)
+                  continue
+                }
+                
+                // Evaluate follow-up
+                const followUpEvalResult = await callEvaluation(
+                  evaluationModel,
+                  followUpResponse.content,
+                  project.brand_variations || [],
+                  project.domain
+                )
+                
+                if (!followUpEvalResult.metrics) continue
+                
+                // Calculate costs
+                const followUpQueryCostCents = await calculateDynamicCost(modelId, followUpResponse.inputTokens, followUpResponse.outputTokens)
+                const followUpEvalCostCents = await calculateDynamicCost(evaluationModel, followUpEvalResult.inputTokens, followUpEvalResult.outputTokens)
+                
+                costCents += followUpQueryCostCents + followUpEvalCostCents
+                inputTokens += followUpResponse.inputTokens + followUpEvalResult.inputTokens
+                outputTokens += followUpResponse.outputTokens + followUpEvalResult.outputTokens
+                
+                // Save follow-up result
+                const { data: followUpResult } = await supabase
+                  .from(TABLES.SCAN_RESULTS)
+                  .insert({
+                    scan_id: scanId,
+                    provider: modelInfo.provider,
+                    model: modelId,
+                    query_text: query.query_text, // Original query for grouping
+                    ai_response_raw: followUpResponse.content,
+                    metrics_json: followUpEvalResult.metrics,
+                    input_tokens: followUpResponse.inputTokens + followUpEvalResult.inputTokens,
+                    output_tokens: followUpResponse.outputTokens + followUpEvalResult.outputTokens,
+                    cost_usd: (followUpQueryCostCents + followUpEvalCostCents) / 100,
+                    follow_up_level: level,
+                    parent_result_id: parentResultId,
+                    follow_up_query_used: followUpQuestion,
+                  })
+                  .select()
+                  .single()
+                
+                if (followUpResult) {
+                  parentResultId = followUpResult.id
+                }
+                
+                // Add to conversation history
+                conversationHistory.push(
+                  { role: 'user', content: followUpQuestion },
+                  { role: 'assistant', content: followUpResponse.content }
+                )
+              }
+            }
 
             return {
               queryId: query.id,
               modelId,
               success: true,
               metrics,
-              costCents: totalCost,
-              inputTokens: response.inputTokens + evalResult.inputTokens,
-              outputTokens: response.outputTokens + evalResult.outputTokens,
-              result,
+              costCents,
+              inputTokens,
+              outputTokens,
+              operationCount,
             }
           } catch (error: any) {
             console.error(`[Chunk] Error for ${modelId}:`, error.message)
@@ -168,9 +294,10 @@ export async function POST(
               modelId,
               success: false,
               error: error.message,
-              costCents: 0,
-              inputTokens: 0,
-              outputTokens: 0,
+              costCents,
+              inputTokens,
+              outputTokens,
+              operationCount,
             }
           }
         })())
@@ -182,10 +309,12 @@ export async function POST(
 
     // Aggregate results
     for (const taskResult of taskResults) {
+      totalCostCents += taskResult.costCents
+      totalInputTokens += taskResult.inputTokens
+      totalOutputTokens += taskResult.outputTokens
+      totalOperations += taskResult.operationCount
+      
       if (taskResult.success) {
-        totalCostCents += taskResult.costCents
-        totalInputTokens += taskResult.inputTokens
-        totalOutputTokens += taskResult.outputTokens
         results.push({
           queryId: taskResult.queryId,
           modelId: taskResult.modelId,
@@ -222,10 +351,14 @@ export async function POST(
     }
 
     const duration = Date.now() - startTime
-    console.log(`[Chunk] Completed in ${duration}ms: ${results.filter(r => r.success).length}/${results.length} successful, cost: ${totalCostCents} cents`)
+    const completedQueries = queries.length // Number of original queries processed (not including follow-ups)
+    
+    console.log(`[Chunk] Completed in ${duration}ms: ${completedQueries} queries, ${totalOperations} operations, ${results.filter(r => r.success).length}/${results.length} successful, cost: ${totalCostCents} cents`)
 
     return NextResponse.json({
       success: true,
+      completedQueries,
+      totalOperations,
       processed: results.length,
       successful: results.filter(r => r.success).length,
       failed: results.filter(r => !r.success).length,

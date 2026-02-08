@@ -136,6 +136,7 @@ export interface AICallConfig {
   model: string
   systemPrompt?: string
   userPrompt: string
+  conversationHistory?: Array<{ role: 'user' | 'assistant', content: string }>
   maxOutputTokens?: number
   temperature?: number
 }
@@ -302,7 +303,8 @@ Always respond with valid JSON only, no explanations or markdown.`
 export async function callGEOQuery(
   model: string,
   query: string,
-  language?: string
+  language?: string,
+  conversationHistory?: Array<{ role: 'user' | 'assistant', content: string }>
 ): Promise<AICallResult> {
   // GPT-5 Nano and other chain-of-thought models need higher token limits
   // because they use tokens for internal "thinking" that doesn't count as visible output
@@ -313,6 +315,7 @@ export async function callGEOQuery(
     model,
     systemPrompt: getGEOSystemPrompt(language),
     userPrompt: query,
+    conversationHistory,
     maxOutputTokens,
     temperature: 0.7,
   })

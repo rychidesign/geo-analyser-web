@@ -38,7 +38,10 @@ export interface Project {
   selected_models: string[] // JSONB stored as array of model IDs (database column name)
   language: string
   scheduled_scan_enabled: boolean
-  scheduled_scan_day: number | null // 0-6 (Sunday-Saturday)
+  scheduled_scan_frequency: 'daily' | 'weekly' | 'monthly'
+  scheduled_scan_hour: number  // 0-23 in user timezone
+  scheduled_scan_day: number | null // 0-6 (Sunday-Saturday) for weekly
+  scheduled_scan_day_of_month: number | null  // 1-28 for monthly
   last_scheduled_scan_at: string | null
   next_scheduled_scan_at: string | null
   follow_up_enabled: boolean // Whether to run follow-up queries during scans
@@ -156,8 +159,11 @@ export interface MonthlyUsage {
   scan_count: number
 }
 
-// Type for inserting new records (without auto-generated fields)
-export type InsertProject = Omit<Project, 'id' | 'created_at' | 'updated_at'>
+// Fields that have database-level defaults and are optional when inserting
+type ProjectDBDefaults = 'scheduled_scan_frequency' | 'scheduled_scan_hour' | 'scheduled_scan_day_of_month'
+
+// Type for inserting new records (without auto-generated fields, DB-defaulted fields are optional)
+export type InsertProject = Omit<Project, 'id' | 'created_at' | 'updated_at' | ProjectDBDefaults> & Partial<Pick<Project, ProjectDBDefaults>>
 export type InsertProjectQuery = Omit<ProjectQuery, 'id' | 'created_at'>
 export type InsertScan = Omit<Scan, 'id' | 'created_at' | 'completed_at'>
 export type InsertScanResult = Omit<ScanResult, 'id' | 'created_at'>

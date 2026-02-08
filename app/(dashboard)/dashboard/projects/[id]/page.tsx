@@ -25,7 +25,8 @@ import {
   Square,
   Pause,
   Link2,
-  CalendarClock
+  CalendarClock,
+  AlertTriangle
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,52 @@ import { useToast } from '@/components/ui/toast'
 import type { Project, ProjectQuery, Scan } from '@/lib/db/schema'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// Helper to format schedule text
+function formatScheduleText(project: Project): string {
+  if (!project.scheduled_scan_enabled) {
+    return 'No schedule'
+  }
+
+  const frequency = project.scheduled_scan_frequency || 'weekly'
+  const hour = project.scheduled_scan_hour ?? 6
+  
+  // Format hour in 12h format with AM/PM
+  const period = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+  const timeStr = `${displayHour}:00 ${period}`
+
+  switch (frequency) {
+    case 'daily':
+      return `Scheduled: Daily at ${timeStr}`
+    
+    case 'weekly': {
+      const dayOfWeek = project.scheduled_scan_day ?? 0
+      const dayName = DAYS[dayOfWeek]
+      return `Scheduled: Every ${dayName} at ${timeStr}`
+    }
+    
+    case 'monthly': {
+      const dayOfMonth = project.scheduled_scan_day_of_month ?? 1
+      const suffix = getDaySuffix(dayOfMonth)
+      return `Scheduled: ${dayOfMonth}${suffix} of every month at ${timeStr}`
+    }
+    
+    default:
+      return 'No schedule'
+  }
+}
+
+// Helper to get day suffix (1st, 2nd, 3rd, etc.)
+function getDaySuffix(day: number): string {
+  if (day >= 11 && day <= 13) return 'th'
+  switch (day % 10) {
+    case 1: return 'st'
+    case 2: return 'nd'
+    case 3: return 'rd'
+    default: return 'th'
+  }
+}
 
 export default function ProjectPage() {
   const params = useParams()
@@ -326,9 +373,7 @@ export default function ProjectPage() {
           <span>{queries.length} queries</span>
           <span className="text-zinc-600">•</span>
           <span>
-            {project.scheduled_scan_enabled 
-              ? `Scheduled: ${DAYS[project.scheduled_scan_day || 0]}`
-              : 'No schedule'}
+            {formatScheduleText(project)}
           </span>
           <span className="text-zinc-600">•</span>
           <span>
@@ -366,7 +411,9 @@ export default function ProjectPage() {
                 <>
                   <div className="flex items-center justify-between text-sm text-zinc-400 mb-2">
                     <span>{currentJob.progress.message || 'Processing...'}</span>
-                    <span>{currentJob.progress.current}/{currentJob.progress.total}</span>
+                    <span className="font-medium">
+                      {Math.round((currentJob.progress.current / currentJob.progress.total) * 100)}%
+                    </span>
                   </div>
                   <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
                     <div 
@@ -375,6 +422,17 @@ export default function ProjectPage() {
                     />
                   </div>
                 </>
+              )}
+              
+              {/* Warning: Don't close window during scan */}
+              {isScanning && (
+                <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-amber-400/90 leading-relaxed">
+                    Please don't close this window. The scan requires an active internet connection. 
+                    If you close the window, the scan will stop and you'll need to start it again.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>

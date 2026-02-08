@@ -18,7 +18,8 @@ import {
   Check,
   Edit2,
   Save,
-  X
+  X,
+  Activity
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { AnnouncementManager } from '@/components/admin/announcement-manager'
+import Link from 'next/link'
 
 interface AdminStats {
   users: {
@@ -250,15 +252,26 @@ export function AdminDashboard() {
             </h1>
             <p className="text-sm text-zinc-400">Platform overview and user management</p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => { fetchStats(); fetchUsers(); fetchPricing(); }}
-            disabled={loading}
-          >
-            <RefreshCw className={cn('w-4 h-4 mr-2', loading && 'animate-spin')} />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Link href="/dashboard/admin/scan-diagnostics">
+              <Button 
+                variant="outline" 
+                size="sm"
+              >
+                <Activity className="w-4 h-4 mr-2" />
+                Scan Diagnostics
+              </Button>
+            </Link>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => { fetchStats(); fetchUsers(); fetchPricing(); }}
+              disabled={loading}
+            >
+              <RefreshCw className={cn('w-4 h-4 mr-2', loading && 'animate-spin')} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 

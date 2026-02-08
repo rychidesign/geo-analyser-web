@@ -17,7 +17,8 @@ import {
   Calendar,
   Clock,
   MessageCircle,
-  Info
+  Info,
+  Lock
 } from 'lucide-react'
 // Note: Evaluation method removed - always uses AI evaluation
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -98,6 +99,7 @@ export default function ProjectSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [userTier, setUserTier] = useState<'free' | 'paid'>('free')
   
   // Fetch pricing from API (centralized pricing)
   const { pricing, isLoading: pricingLoading, error: pricingError } = usePricing()
@@ -206,8 +208,12 @@ export default function ProjectSettingsPage() {
   
   // Scheduled scan state
   const [scheduledScanEnabled, setScheduledScanEnabled] = useState(false)
-  const [scheduledScanDay, setScheduledScanDay] = useState<number>(1) // Monday
+  const [scheduledFrequency, setScheduledFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly')
+  const [scheduledHour, setScheduledHour] = useState<number>(6)
+  const [scheduledScanDay, setScheduledScanDay] = useState<number>(1) // Monday (for weekly)
+  const [scheduledDayOfMonth, setScheduledDayOfMonth] = useState<number>(1) // 1st (for monthly)
   const [nextScheduledScan, setNextScheduledScan] = useState<string | null>(null)
+  const [userTimezone, setUserTimezone] = useState<string>('UTC')
   
   // Follow-up queries state
   const [followUpEnabled, setFollowUpEnabled] = useState(false)
@@ -235,7 +241,10 @@ export default function ProjectSettingsPage() {
         setSelectedModels(data.selected_models || ['gpt-5-mini'])
         // Scheduled scan settings
         setScheduledScanEnabled(data.scheduled_scan_enabled || false)
+        setScheduledFrequency(data.scheduled_scan_frequency || 'weekly')
+        setScheduledHour(data.scheduled_scan_hour ?? 6)
         setScheduledScanDay(data.scheduled_scan_day ?? 1)
+        setScheduledDayOfMonth(data.scheduled_scan_day_of_month ?? 1)
         setNextScheduledScan(data.next_scheduled_scan_at || null)
         // Follow-up settings
         setFollowUpEnabled(data.follow_up_enabled || false)
@@ -243,6 +252,20 @@ export default function ProjectSettingsPage() {
         // AI Helper models
         setQueryGenerationModel(data.query_generation_model || 'gpt-5-mini')
         setEvaluationModel(data.evaluation_model || 'gpt-5-mini')
+      }
+      
+      // Load user timezone and tier
+      const profileRes = await fetch('/api/settings')
+      if (profileRes.ok) {
+        const profileData = await profileRes.json()
+        setUserTimezone(profileData.timezone || 'UTC')
+      }
+      
+      // Load user tier from credits API
+      const creditsRes = await fetch('/api/credits')
+      if (creditsRes.ok) {
+        const creditsData = await creditsRes.json()
+        setUserTier(creditsData.tier || 'free')
       }
     } catch (error) {
       console.error('Error loading project:', error)
@@ -297,7 +320,10 @@ export default function ProjectSettingsPage() {
           target_keywords: keywords,
           llm_models: selectedModels,
           scheduled_scan_enabled: scheduledScanEnabled,
+          scheduled_scan_frequency: scheduledFrequency,
+          scheduled_scan_hour: scheduledHour,
           scheduled_scan_day: scheduledScanDay,
+          scheduled_scan_day_of_month: scheduledDayOfMonth,
           follow_up_enabled: followUpEnabled,
           follow_up_depth: followUpDepth,
           query_generation_model: queryGenerationModel,
@@ -796,63 +822,190 @@ export default function ProjectSettingsPage() {
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 <CardTitle>Scheduled Scans</CardTitle>
+                {userTier === 'free' && (
+                  <Badge variant="secondary" className="ml-auto">
+                    <Lock className="w-3 h-3 mr-1" />
+                    Pro Feature
+                  </Badge>
+                )}
               </div>
               <CardDescription>
-                Automatically run scans on a weekly schedule
+                Automatically run scans on a schedule (daily, weekly, or monthly)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="scheduled-scan-toggle">Enable Weekly Scans</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically run a scan every week at the scheduled time
-                  </p>
+              {userTier === 'free' ? (
+                /* Free User Locked State */
+                <div className="relative">
+                  <div className="p-6 bg-muted/30 border-2 border-dashed border-muted-foreground/20 rounded-lg text-center space-y-4">
+                    <div className="flex justify-center">
+                      <div className="p-3 bg-primary/10 rounded-full">
+                        <Lock className="w-8 h-8 text-primary" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold">Scheduled Scans — Pro Feature</h3>
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                        Automatically run scans on a schedule to track your brand visibility over time. 
+                        Perfect for monitoring your GEO performance without manual intervention.
+                      </p>
+                    </div>
+                    <div className="flex justify-center pt-2">
+                      <Button asChild>
+                        <Link href="/dashboard/costs">
+                          Upgrade to Pro →
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <Switch
-                  id="scheduled-scan-toggle"
-                  checked={scheduledScanEnabled}
-                  onCheckedChange={setScheduledScanEnabled}
-                />
-              </div>
+              ) : (
+                /* Paid User Normal UI */
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="scheduled-scan-toggle">Enable Scheduled Scans</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically run scans on your preferred schedule
+                      </p>
+                    </div>
+                    <Switch
+                      id="scheduled-scan-toggle"
+                      checked={scheduledScanEnabled}
+                      onCheckedChange={setScheduledScanEnabled}
+                    />
+                  </div>
 
               {scheduledScanEnabled && (
                 <>
                   <Separator />
                   
+                  {/* Frequency Selection */}
+                  <div className="space-y-4">
+                    <Label>Scan Frequency</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {(['daily', 'weekly', 'monthly'] as const).map((freq) => (
+                        <div
+                          key={freq}
+                          onClick={() => setScheduledFrequency(freq)}
+                          className={`
+                            flex flex-col items-center gap-2 p-4 rounded-lg border cursor-pointer transition-colors text-center
+                            ${scheduledFrequency === freq ? 'bg-primary/10 border-primary' : 'border-border hover:bg-muted'}
+                          `}
+                        >
+                          <div className={`
+                            w-5 h-5 rounded-full border-2 flex items-center justify-center
+                            ${scheduledFrequency === freq ? 'border-primary bg-primary' : 'border-muted-foreground'}
+                          `}>
+                            {scheduledFrequency === freq && <Check className="w-3 h-3 text-primary-foreground" />}
+                          </div>
+                          <div>
+                            <span className="text-lg font-semibold capitalize">{freq}</span>
+                            <p className="text-xs text-muted-foreground">
+                              {freq === 'daily' ? 'Every day' : freq === 'weekly' ? 'Once a week' : 'Once a month'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Hour Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="scan-day">Day of Week</Label>
+                    <Label htmlFor="scan-hour">Time of Day</Label>
                     <Select 
-                      value={scheduledScanDay.toString()} 
-                      onValueChange={(v) => setScheduledScanDay(parseInt(v))}
+                      value={scheduledHour.toString()} 
+                      onValueChange={(v) => setScheduledHour(parseInt(v))}
                     >
-                      <SelectTrigger id="scan-day" className="w-full md:w-64">
+                      <SelectTrigger id="scan-hour" className="w-full md:w-64">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {DAYS_OF_WEEK.map((day) => (
-                          <SelectItem key={day.value} value={day.value.toString()}>
-                            {day.label}
-                          </SelectItem>
-                        ))}
+                        {Array.from({ length: 24 }, (_, i) => {
+                          const hour12 = i % 12 || 12
+                          const ampm = i < 12 ? 'AM' : 'PM'
+                          return (
+                            <SelectItem key={i} value={i.toString()}>
+                              {hour12}:00 {ampm}
+                            </SelectItem>
+                          )
+                        })}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Scans run automatically around 6:00 AM UTC on the selected day.
+                      Time in your timezone: {userTimezone} (<Link href="/dashboard/settings" className="text-primary hover:underline">change</Link>)
                     </p>
                   </div>
 
+                  {/* Day of Week (for weekly) */}
+                  {scheduledFrequency === 'weekly' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="scan-day">Day of Week</Label>
+                      <Select 
+                        value={scheduledScanDay.toString()} 
+                        onValueChange={(v) => setScheduledScanDay(parseInt(v))}
+                      >
+                        <SelectTrigger id="scan-day" className="w-full md:w-64">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DAYS_OF_WEEK.map((day) => (
+                            <SelectItem key={day.value} value={day.value.toString()}>
+                              {day.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Day of Month (for monthly) */}
+                  {scheduledFrequency === 'monthly' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="scan-day-of-month">Day of Month</Label>
+                      <Select 
+                        value={scheduledDayOfMonth.toString()} 
+                        onValueChange={(v) => setScheduledDayOfMonth(parseInt(v))}
+                      >
+                        <SelectTrigger id="scan-day-of-month" className="w-full md:w-64">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 28 }, (_, i) => {
+                            const day = i + 1
+                            const suffix = day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'
+                            return (
+                              <SelectItem key={day} value={day.toString()}>
+                                {day}{suffix}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Limited to day 1-28 to ensure the day exists in all months
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Next Scan Display */}
                   {nextScheduledScan && (
                     <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
                       <Clock className="w-4 h-4 text-primary" />
                       <div className="text-sm">
                         <span className="text-muted-foreground">Next scan: </span>
                         <span className="font-medium">
-                          {new Date(nextScheduledScan).toLocaleString(undefined, {
+                          {new Date(nextScheduledScan).toLocaleString('en-US', {
+                            timeZone: userTimezone,
                             weekday: 'long',
                             year: 'numeric',
-                            month: 'long',
+                            month: 'short',
                             day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
                           })}
                         </span>
                       </div>
@@ -865,6 +1018,8 @@ export default function ProjectSettingsPage() {
                       Make sure you have sufficient credits to avoid skipped scans.
                     </p>
                   </div>
+                </>
+              )}
                 </>
               )}
             </CardContent>
