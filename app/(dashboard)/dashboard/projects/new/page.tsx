@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, Plus, X, Check, Cpu, AlertCircle, MessageCircle, Calendar, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, X, Check, Cpu, AlertCircle, MessageCircle, Calendar, AlertTriangle, Lock } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,6 +69,7 @@ export default function NewProjectPage() {
   const { showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [userTier, setUserTier] = useState<'free' | 'paid' | 'test' | 'admin'>('free')
   
   // Fetch pricing from API (centralized pricing)
   const { pricing, isLoading: pricingLoading, error: pricingError, getModelPrice, getEstimatedCost } = usePricing()
@@ -138,6 +139,22 @@ export default function NewProjectPage() {
       }
     }
     fetchHelperModels()
+  }, [])
+  
+  // Fetch user tier
+  useEffect(() => {
+    async function fetchUserTier() {
+      try {
+        const res = await fetch('/api/credits')
+        if (res.ok) {
+          const data = await res.json()
+          setUserTier(data.tier || 'free')
+        }
+      } catch (error) {
+        console.error('Failed to fetch user tier:', error)
+      }
+    }
+    fetchUserTier()
   }, [])
   
   // Build price map from API data
@@ -738,53 +755,89 @@ export default function NewProjectPage() {
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 <CardTitle>Scheduled Scans</CardTitle>
+                {userTier === 'free' && (
+                  <Badge variant="secondary" className="ml-auto">
+                    <Lock className="w-3 h-3 mr-1" />
+                    Pro Feature
+                  </Badge>
+                )}
               </div>
               <CardDescription>
                 Automatically run scans on a weekly schedule
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="scheduled-scan-toggle">Enable Weekly Scans</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically run a scan every week at the scheduled time
-                  </p>
-                </div>
-                <Switch
-                  id="scheduled-scan-toggle"
-                  checked={scheduledScanEnabled}
-                  onCheckedChange={setScheduledScanEnabled}
-                  disabled={loading}
-                />
-              </div>
-
-              {scheduledScanEnabled && (
-                <>
-                  <Separator />
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="scan-day">Day of Week</Label>
-                    <Select 
-                      value={scheduledScanDay.toString()} 
-                      onValueChange={(v) => setScheduledScanDay(parseInt(v))}
-                      disabled={loading}
-                    >
-                      <SelectTrigger id="scan-day" className="w-full md:w-64">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DAYS_OF_WEEK.map((day) => (
-                          <SelectItem key={day.value} value={day.value.toString()}>
-                            {day.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Scans run automatically around 6:00 AM UTC on the selected day.
-                    </p>
+              {userTier === 'free' ? (
+                /* Free User Locked State */
+                <div className="relative">
+                  <div className="p-6 bg-muted/30 border-2 border-dashed border-muted-foreground/20 rounded-lg text-center space-y-4">
+                    <div className="flex justify-center">
+                      <div className="p-3 bg-primary/10 rounded-full">
+                        <Lock className="w-8 h-8 text-primary" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold">Scheduled Scans — Pro Feature</h3>
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                        Automatically run scans on a schedule to track your brand visibility over time. 
+                        Perfect for monitoring your GEO performance without manual intervention.
+                      </p>
+                    </div>
+                    <div className="flex justify-center pt-2">
+                      <Button asChild>
+                        <Link href="/dashboard/costs">
+                          Upgrade to Pro →
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
+                </div>
+              ) : (
+                /* Paid/Admin/Test User Normal UI */
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="scheduled-scan-toggle">Enable Weekly Scans</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically run a scan every week at the scheduled time
+                      </p>
+                    </div>
+                    <Switch
+                      id="scheduled-scan-toggle"
+                      checked={scheduledScanEnabled}
+                      onCheckedChange={setScheduledScanEnabled}
+                      disabled={loading}
+                    />
+                  </div>
+
+                  {scheduledScanEnabled && (
+                    <>
+                      <Separator />
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="scan-day">Day of Week</Label>
+                        <Select 
+                          value={scheduledScanDay.toString()} 
+                          onValueChange={(v) => setScheduledScanDay(parseInt(v))}
+                          disabled={loading}
+                        >
+                          <SelectTrigger id="scan-day" className="w-full md:w-64">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DAYS_OF_WEEK.map((day) => (
+                              <SelectItem key={day.value} value={day.value.toString()}>
+                                {day.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Scans run automatically around 6:00 AM UTC on the selected day.
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </CardContent>

@@ -99,7 +99,7 @@ export default function ProjectSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [userTier, setUserTier] = useState<'free' | 'paid'>('free')
+  const [userTier, setUserTier] = useState<'free' | 'paid' | 'test' | 'admin'>('free')
   
   // Fetch pricing from API (centralized pricing)
   const { pricing, isLoading: pricingLoading, error: pricingError } = usePricing()
