@@ -158,14 +158,48 @@ export async function POST(
       )
     }
 
-    // Insert queries into database
-    const queriesToInsert = validQueries.map(q => ({
-      project_id: projectId,
-      query_text: q.query_text.trim(),
-      query_type: q.query_type,
-      is_ai_generated: true,
-      is_active: true,
-    }))
+    // Deduplicate: fetch existing query texts for this project
+    const { data: existingQueries } = await supabase
+      .from(TABLES.PROJECT_QUERIES)
+      .select('query_text')
+      .eq('project_id', projectId)
+
+    const existingTexts = new Set(
+      (existingQueries || []).map((q: { query_text: string }) => q.query_text.trim().toLowerCase())
+    )
+
+    // Filter out queries that already exist (case-insensitive) and deduplicate within batch
+    const seenTexts = new Set<string>()
+    const queriesToInsert = validQueries
+      .filter(q => {
+        const normalized = q.query_text.trim().toLowerCase()
+        if (existingTexts.has(normalized) || seenTexts.has(normalized)) {
+          return false
+        }
+        seenTexts.add(normalized)
+        return true
+      })
+      .map(q => ({
+        project_id: projectId,
+        query_text: q.query_text.trim(),
+        query_type: q.query_type,
+        is_ai_generated: true,
+        is_active: true,
+      }))
+
+    if (queriesToInsert.length === 0) {
+      return NextResponse.json({
+        queries: [],
+        generation: {
+          provider: response.provider,
+          model: modelToUse,
+          inputTokens: response.inputTokens,
+          outputTokens: response.outputTokens,
+          costUsd: 0,
+        },
+        message: 'All generated queries already exist in this project.',
+      })
+    }
 
     const { data: insertedQueries, error: insertError } = await supabase
       .from(TABLES.PROJECT_QUERIES)

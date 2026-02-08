@@ -56,6 +56,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Query text is required' }, { status: 400 })
     }
 
+    // Check for duplicate query text in this project
+    const supabaseForCheck = await createClient()
+    const { data: existing } = await supabaseForCheck
+      .from('project_queries')
+      .select('id')
+      .eq('project_id', id)
+      .ilike('query_text', query_text.trim())
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      return NextResponse.json({ error: 'This query already exists in the project.' }, { status: 409 })
+    }
+
     const query = await createProjectQuery({
       project_id: id,
       query_text: query_text.trim(),

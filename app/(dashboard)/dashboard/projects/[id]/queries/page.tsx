@@ -178,6 +178,8 @@ export default function QueriesPage() {
         const query = await res.json()
         setQueries([...queries, query])
         setNewQuery('')
+      } else if (res.status === 409) {
+        showError('This query already exists in the project.')
       }
     } catch (error) {
       console.error('Error adding query:', error)

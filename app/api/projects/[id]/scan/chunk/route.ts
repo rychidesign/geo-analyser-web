@@ -77,6 +77,25 @@ export async function POST(
     const followUpEnabled = project.follow_up_enabled === true
     const followUpDepth = project.follow_up_depth || 1
     
+    // ================================================================
+    // IDEMPOTENCY CHECK: Skip query-model pairs already processed
+    // This prevents duplicates when chunks are retried (e.g. edge timeout)
+    // ================================================================
+    const { data: existingResults } = await supabase
+      .from(TABLES.SCAN_RESULTS)
+      .select('query_text, model, follow_up_level')
+      .eq('scan_id', scanId)
+      .eq('follow_up_level', 0)
+
+    // Build a set of already-processed "query_text|model" pairs
+    const alreadyProcessed = new Set<string>(
+      (existingResults || []).map((r: { query_text: string; model: string }) => `${r.query_text}|${r.model}`)
+    )
+    
+    if (alreadyProcessed.size > 0) {
+      console.log(`[Chunk] Idempotency: ${alreadyProcessed.size} query-model pair(s) already processed, will skip`)
+    }
+
     // Process each query × model combination
     const results = []
     let totalCostCents = 0
@@ -91,6 +110,20 @@ export async function POST(
         const modelInfo = getModelInfo(modelId)
         if (!modelInfo || !modelInfo.isActive) {
           console.warn(`[Chunk] Model ${modelId} not found or inactive`)
+          continue
+        }
+
+        // Skip if this query-model combination was already processed (retry idempotency)
+        const pairKey = `${query.query_text}|${modelId}`
+        if (alreadyProcessed.has(pairKey)) {
+          console.log(`[Chunk] Skipping already processed: ${modelId} × "${query.query_text.substring(0, 40)}..."`)
+          results.push({
+            queryId: query.id,
+            modelId,
+            success: true,
+            metrics: null,
+            skipped: true,
+          })
           continue
         }
 
@@ -342,29 +375,39 @@ export async function POST(
       }
     }
 
-    // Update scan totals (increment existing values)
-    const { data: currentScan } = await supabase
-      .from(TABLES.SCANS)
-      .select('total_cost_usd, total_input_tokens, total_output_tokens, total_results')
-      .eq('id', scanId)
-      .single()
+    // Count only genuinely new results (not skipped/already-processed ones)
+    const newSuccessful = results.filter(r => r.success && !(r as any).skipped).length
+    const skippedCount = results.filter(r => (r as any).skipped).length
 
-    if (currentScan) {
-      await supabase
+    // Only update scan totals if we actually processed something new
+    if (totalCostCents > 0 || totalInputTokens > 0 || newSuccessful > 0) {
+      const { data: currentScan } = await supabase
         .from(TABLES.SCANS)
-        .update({
-          total_cost_usd: (currentScan.total_cost_usd || 0) + (totalCostCents / 100),
-          total_input_tokens: (currentScan.total_input_tokens || 0) + totalInputTokens,
-          total_output_tokens: (currentScan.total_output_tokens || 0) + totalOutputTokens,
-          total_results: (currentScan.total_results || 0) + results.filter(r => r.success).length,
-        })
+        .select('total_cost_usd, total_input_tokens, total_output_tokens, total_results')
         .eq('id', scanId)
+        .single()
+
+      if (currentScan) {
+        await supabase
+          .from(TABLES.SCANS)
+          .update({
+            total_cost_usd: (currentScan.total_cost_usd || 0) + (totalCostCents / 100),
+            total_input_tokens: (currentScan.total_input_tokens || 0) + totalInputTokens,
+            total_output_tokens: (currentScan.total_output_tokens || 0) + totalOutputTokens,
+            total_results: (currentScan.total_results || 0) + newSuccessful,
+          })
+          .eq('id', scanId)
+      }
     }
 
     const duration = Date.now() - startTime
     const completedQueries = queries.length // Number of original queries processed (not including follow-ups)
     
-    console.log(`[Chunk] Completed in ${duration}ms: ${completedQueries} queries, ${totalOperations} operations, ${results.filter(r => r.success).length}/${results.length} successful, cost: ${totalCostCents} cents`)
+    if (skippedCount > 0) {
+      console.log(`[Chunk] Completed in ${duration}ms: ${completedQueries} queries, ${skippedCount} skipped (already processed), ${totalOperations} new operations, ${newSuccessful}/${results.length - skippedCount} new successful, cost: ${totalCostCents} cents`)
+    } else {
+      console.log(`[Chunk] Completed in ${duration}ms: ${completedQueries} queries, ${totalOperations} operations, ${newSuccessful}/${results.length} successful, cost: ${totalCostCents} cents`)
+    }
 
     return NextResponse.json({
       success: true,
