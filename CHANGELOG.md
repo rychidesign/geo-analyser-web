@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.1] - 2026-02-08
+
+### Added
+- **Enhanced Query Management**: Improved UI and API for managing project queries.
+- **Improved Scan Chunking**: Optimized scan processing for better performance and reliability.
+
+---
+
 ## [1.3.0] - 2026-02-08
 
 ### Added
@@ -71,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.3.1 | 2026-02-08 | Enhanced query management and improved scan chunking |
 | 1.3.0 | 2026-02-08 | Enhanced scan architecture, diagnostics, and unified error handling |
 | 1.2.0 | 2026-02-04 | Scan Queue system, Minute Cron, and Vercel Pro support |
 | 1.1.0 | 2026-02-03 | Added testing framework, MDC docs, and git workflow |
