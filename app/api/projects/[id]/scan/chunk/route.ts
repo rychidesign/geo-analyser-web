@@ -107,6 +107,9 @@ export async function POST(
             // ========================================
             const response = await callGEOQuery(modelId, query.query_text, project.language || 'en')
             operationCount++
+            // Accumulate tokens immediately so partial progress is tracked on error
+            inputTokens += response.inputTokens
+            outputTokens += response.outputTokens
 
             if (!response.content) {
               console.log(`[Chunk] Empty response from ${modelId}`)
@@ -115,10 +118,10 @@ export async function POST(
                 modelId,
                 success: false,
                 error: 'Empty response',
-                costCents: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                operationCount: 0,
+                costCents,
+                inputTokens,
+                outputTokens,
+                operationCount,
               }
             }
 
@@ -129,6 +132,9 @@ export async function POST(
               project.brand_variations || [],
               project.domain
             )
+            // Accumulate eval tokens immediately
+            inputTokens += evalResult.inputTokens
+            outputTokens += evalResult.outputTokens
 
             if (!evalResult.metrics) {
               return {
@@ -136,10 +142,10 @@ export async function POST(
                 modelId,
                 success: false,
                 error: 'No metrics',
-                costCents: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                operationCount: 0,
+                costCents,
+                inputTokens,
+                outputTokens,
+                operationCount,
               }
             }
 
@@ -149,16 +155,14 @@ export async function POST(
               response.inputTokens,
               response.outputTokens
             )
+            costCents += queryCostCents
             
             const evalCostCents = await calculateDynamicCost(
               evaluationModel,
               evalResult.inputTokens,
               evalResult.outputTokens
             )
-            
-            costCents += queryCostCents + evalCostCents
-            inputTokens += response.inputTokens + evalResult.inputTokens
-            outputTokens += response.outputTokens + evalResult.outputTokens
+            costCents += evalCostCents
 
             // Validate metrics
             const metrics: ScanMetrics = {
@@ -221,6 +225,9 @@ export async function POST(
                 )
                 
                 operationCount++
+                // Accumulate follow-up tokens immediately
+                inputTokens += followUpResponse.inputTokens
+                outputTokens += followUpResponse.outputTokens
                 
                 if (!followUpResponse.content) {
                   console.log(`[Chunk] Empty follow-up response ${level} from ${modelId}`)
@@ -234,16 +241,17 @@ export async function POST(
                   project.brand_variations || [],
                   project.domain
                 )
+                // Accumulate eval tokens immediately
+                inputTokens += followUpEvalResult.inputTokens
+                outputTokens += followUpEvalResult.outputTokens
                 
                 if (!followUpEvalResult.metrics) continue
                 
                 // Calculate costs
                 const followUpQueryCostCents = await calculateDynamicCost(modelId, followUpResponse.inputTokens, followUpResponse.outputTokens)
+                costCents += followUpQueryCostCents
                 const followUpEvalCostCents = await calculateDynamicCost(evaluationModel, followUpEvalResult.inputTokens, followUpEvalResult.outputTokens)
-                
-                costCents += followUpQueryCostCents + followUpEvalCostCents
-                inputTokens += followUpResponse.inputTokens + followUpEvalResult.inputTokens
-                outputTokens += followUpResponse.outputTokens + followUpEvalResult.outputTokens
+                costCents += followUpEvalCostCents
                 
                 // Save follow-up result
                 const { data: followUpResult } = await supabase

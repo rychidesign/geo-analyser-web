@@ -569,8 +569,11 @@ async function processScan(
 
         } catch (err: any) {
           console.error(`[Worker ${workerId}] Error ${modelId}:`, err.message)
-          // Skip remaining follow-ups for this query-model pair if error occurs
-          completedOperations += operationsPerQuery - (completedOperations % operationsPerQuery || operationsPerQuery)
+          // Skip remaining follow-ups for this query-model pair if error occurs.
+          // Each query-model pair accounts for `operationsPerQuery` operations.
+          // Calculate how many ops remain in the current pair and advance past them.
+          const completedInPair = ((completedOperations - 1) % operationsPerQuery) + 1
+          completedOperations += operationsPerQuery - completedInPair
         }
       }
       

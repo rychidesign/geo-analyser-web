@@ -144,14 +144,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       updates.scheduled_scan_day_of_month !== undefined
 
     if (schedulingChanged && (body.scheduled_scan_enabled !== false && existing.scheduled_scan_enabled !== false)) {
-      // Get user's timezone from profile
-      const { data: profile } = await supabase
-        .from(TABLES.USER_PROFILES)
-        .select('timezone')
+      // Get user's timezone from the _profile settings row (config JSONB)
+      const { data: profileSetting } = await supabase
+        .from(TABLES.USER_SETTINGS)
+        .select('config')
         .eq('user_id', user.id)
+        .eq('provider', '_profile')
         .single()
 
-      const timezone = profile?.timezone || 'UTC'
+      const tz = (profileSetting?.config as Record<string, unknown>)?.timezone
+      const timezone = typeof tz === 'string' ? tz : 'UTC'
 
       // Get final values (merge existing with updates)
       const frequency = (updates.scheduled_scan_frequency ?? existing.scheduled_scan_frequency) || 'weekly'
