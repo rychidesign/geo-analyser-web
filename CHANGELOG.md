@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-02-08
+
+### Added
+- **Enhanced Scan Architecture**: Major overhaul of the scan processing logic for better reliability and performance.
+- **Admin Scan Diagnostics**: New dashboard for administrators to monitor and debug scan health.
+- **Follow-up Query Support**: Improved handling of multi-turn conversational resilience.
+- **Centralized Encryption**: Secure API key handling moved to a dedicated `lib/crypto.ts` module.
+- **Unified Error Handling**: Standardized API responses with `ApiError` class.
+- **Advanced Scheduling**: Flexible scan frequency settings (Migration 023).
+
+### Changed
+- Reorganized scripts into `dev-scripts/` for better project structure.
+- Updated Vercel configuration for enhanced reliability.
+
+---
+
 ## [1.2.0] - 2026-02-04
 
 ### Added
@@ -55,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.3.0 | 2026-02-08 | Enhanced scan architecture, diagnostics, and unified error handling |
 | 1.2.0 | 2026-02-04 | Scan Queue system, Minute Cron, and Vercel Pro support |
 | 1.1.0 | 2026-02-03 | Added testing framework, MDC docs, and git workflow |
 | 1.0.0 | 2026-02-02 | Initial release |
